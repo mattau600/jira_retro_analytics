@@ -83,6 +83,12 @@ End Date: <input type="text" name="end" id="end"/>
 {% endfor %}
 </table>
 
+{% if no_deferral_assignee %}
+<p>Congratulations to the following team members fully completed the sprint: <span class="text-success">{{no_deferral_assignee | join(', ') }} </span> <p>
+{% else %}
+<p>No one fully completed sprint.</p>
+{% endif %}
+
 {% if unplanned %}
 <table class="table table-bordered">
 <caption>Unplanned Tasks</caption>

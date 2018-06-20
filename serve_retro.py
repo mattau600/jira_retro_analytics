@@ -1,5 +1,5 @@
 from flask import Flask
-from flask import abort, request, render_template
+from flask import request, render_template
 from decimal import *
 
 import xml.etree.ElementTree as ET
@@ -19,8 +19,8 @@ def serve():
             filename = request.files['xml_file']
             start_date = request.form['start']
             end_date = request.form['end']
-            total_working_hours, data, unplanned, deferred, done_but_time_left = retro(filename, start_date, end_date)
-            return render_template('serve_retro.html', start_date=start_date, end_date=end_date, total_working_hours=total_working_hours, data=data, unplanned=unplanned, deferred=deferred, done_but_time_left=done_but_time_left)
+            total_working_hours, data, unplanned, deferred, done_but_time_left, no_deferral_assignee = retro(filename, start_date, end_date)
+            return render_template('serve_retro.html', start_date=start_date, end_date=end_date, total_working_hours=total_working_hours, data=data, unplanned=unplanned, deferred=deferred, done_but_time_left=done_but_time_left, no_deferral_assignee=no_deferral_assignee)
         except Exception:
             import traceback
             return traceback.format_exc()
@@ -40,7 +40,7 @@ def convert_to_time(time):
     elif hours:
         return str(int(hours)) + 'h'
     else:
-        str(int(minutes)) + 'm'
+        return str(int(minutes)) + 'm'
 
 
 def retro(filename, start_date, end_date):
@@ -67,6 +67,7 @@ def retro(filename, start_date, end_date):
     unplanned = {}
     deferred = {}
     done_but_time_left = []
+    no_deferral_assignee = []
 
     for item in channel.findall('item'):
         assignee = item.find('assignee').text
@@ -80,9 +81,15 @@ def retro(filename, start_date, end_date):
             hours_estimate = 0
 
         time_left = item.find('timeestimate')
-        if time_left is not None:
-            hours_left = Decimal(time_left.get("seconds")) / 3600
+        if time_left is not None:  # do not consider time left if already marked as done
+            if item.find("resolution").text == 'Done':
+                done_with_hours_left = Decimal(time_left.get("seconds")) / 3600
+                hours_left = 0
+            else:
+                done_with_hours_left = 0
+                hours_left = Decimal(time_left.get("seconds")) / 3600
         else:
+            done_with_hours_left = 0
             hours_left = 0
 
         time_spent = item.find('timespent')
@@ -90,15 +97,15 @@ def retro(filename, start_date, end_date):
             hours_spent = Decimal(time_spent.get("seconds")) / 3600
         else:
             hours_spent = 0
-            
+
         type = item.find('type').text
-        
+
         created_time = datetime.strptime(item.find('created').text, "%a, %d %b %Y %H:%M:%S +0800")
 
         if assignee in retro:
             record = retro[assignee]
         else:
-            record = {"total_estimated": 0, "total_spent": 0, "total_left": 0, "total_estimated_done": 0, "total_spent_done": 0, "total_unplanned": 0, "total_spent_bug":0 }
+            record = {"total_estimated": 0, "total_spent": 0, "total_left": 0, "total_estimated_done": 0, "total_spent_done": 0, "total_unplanned": 0, "total_spent_bug": 0}
             retro[assignee] = record
 
         total_time_estimate += hours_estimate
@@ -108,10 +115,10 @@ def retro(filename, start_date, end_date):
         record["total_estimated"] += hours_estimate
         record["total_spent"] += hours_spent
         record["total_left"] += hours_left
-        
+
         if type == "Bug":
             total_time_spent_bug += hours_spent
-            record["total_spent_bug"] += hours_spent 
+            record["total_spent_bug"] += hours_spent
 
         time_diff = created_time - start_time
 
@@ -133,8 +140,8 @@ def retro(filename, start_date, end_date):
             total_time_spent_done += hours_spent
             record["total_estimated_done"] += hours_estimate
             record["total_spent_done"] += hours_spent
-            if hours_left > 0:  # this is a strange case
-                done_but_time_left.append({"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link, "updated": item.find('updated').text})
+            if done_with_hours_left > 0:  # this is a strange case
+                done_but_time_left.append({"title": title, "assignee": assignee, "hours_left": convert_to_time(done_with_hours_left), "link": link, "updated": item.find('updated').text})
         elif item.find("resolution").text == "Unresolved":
             deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link, "updated": item.find('updated').text}
             if assignee in deferred:
@@ -162,20 +169,11 @@ def retro(filename, start_date, end_date):
                          int((Decimal(record["total_unplanned"]) / record["total_estimated"]) * 100),
                          int((Decimal(record["total_spent"]) / total_working_hours) * 100),
                          int((Decimal(record["total_spent_bug"]) / record["total_spent_done"]) * 100)])
+
+            if Decimal(record["total_left"]) == 0:
+                no_deferral_assignee.append(assignee)
         except (ZeroDivisionError, InvalidOperation):
-            data.append([assignee,
-                         convert_to_time(record["total_estimated"]),
-                         convert_to_time(record["total_estimated_done"]),
-                         convert_to_time(record["total_spent_done"]),
-                         convert_to_time(record["total_spent"]),
-                         convert_to_time(record["total_left"]),
-                         convert_to_time(record["total_unplanned"]),
-                         convert_to_time(record["total_spent_bug"]),
-                         '-',
-                         '-',
-                         '-',
-                         '-',
-                         '-'])
+            # we do not consider staff with 0 hours, as they are probably not team members
             pass
 
     data.append(["Total",
@@ -191,7 +189,7 @@ def retro(filename, start_date, end_date):
                  int((Decimal(total_time_unplanned) / total_time_estimate) * 100),
                  int((Decimal(total_time_spent) / total_working_hours_team) * 100),
                  int((Decimal(total_time_spent_bug) / total_time_spent) * 100)])
-    return total_working_hours, data, unplanned, deferred, done_but_time_left
+    return total_working_hours, data, unplanned, deferred, done_but_time_left, no_deferral_assignee
 
 
 if __name__ == '__main__':
