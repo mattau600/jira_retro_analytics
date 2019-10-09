@@ -159,6 +159,28 @@ End Date: <input type="text" name="end" id="end"/>
 </table>
 {% endif %}
 
+{%if testers %}
+<table class="table table-bordered">
+<thead>
+<th>Tester</th>
+<th>QA Hours</th>
+<th>Automated Tests</th>
+</thead>
+{% for tester in testers %}
+<tr>
+<td>{{tester}}</td>
+<td>{{testers[tester]['total_qa_hours']}}</td>
+<td>{{testers[tester]['total_tests']}}</td>
+</tr>
+{% endfor %}
+<tr>
+<td>Total</td>
+<td>{{total_qa_spent}}</td>
+<td>{{total_tests}}</td>
+</tr>
+</table>
+{% endif %}
+
 <div class="well">
 <ul> 
 <li>"Est (Done)" indicates the total hours estimated on tasks that are moved to Done.  It does not include estimates on incomplete tasks, but will include estimates of unplanned tasks.</li>

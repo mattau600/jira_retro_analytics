@@ -19,8 +19,10 @@ def serve():
             filename = request.files['xml_file']
             start_date = request.form['start']
             end_date = request.form['end']
-            total_working_hours, data, unplanned, deferred, done_but_time_left, no_deferral_assignee = retro(filename, start_date, end_date)
-            return render_template('serve_retro.html', start_date=start_date, end_date=end_date, total_working_hours=total_working_hours, data=data, unplanned=unplanned, deferred=deferred, done_but_time_left=done_but_time_left, no_deferral_assignee=no_deferral_assignee)
+            total_working_hours, data, unplanned, deferred, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests = retro(filename, start_date, end_date)
+            return render_template('serve_retro.html', start_date=start_date, end_date=end_date, total_working_hours=total_working_hours,
+                                   data=data, unplanned=unplanned, deferred=deferred, done_but_time_left=done_but_time_left,
+                                   no_deferral_assignee=no_deferral_assignee, testers=testers, total_qa_spent=total_qa_spent, total_tests=total_tests)
         except Exception:
             import traceback
             return traceback.format_exc()
@@ -68,6 +70,9 @@ def retro(filename, start_date, end_date):
     deferred = {}
     done_but_time_left = []
     no_deferral_assignee = []
+
+    testers = {}
+    total_qa_spent = 0
 
     for item in channel.findall('item'):
         assignee = item.find('assignee').text
@@ -149,6 +154,29 @@ def retro(filename, start_date, end_date):
             else:
                 deferred[assignee] = [deferred_entry]
 
+        qa_hours = 0
+        qa_tests = 0
+        total_tests = 0
+        tester = None
+        custom_fields = item.find("customfields")
+        if custom_fields is not None:
+            for custom_field in custom_fields.findall('customfield'):
+                if custom_field.find("customfieldname").text == "Tester":
+                    tester = custom_field.find("customfieldvalues").find("customfieldvalue").text.capitalize()
+                if custom_field.find("customfieldname").text == "QA Hours":
+                    qa_hours = float(custom_field.find("customfieldvalues").find("customfieldvalue").text)
+                if custom_field.find("customfieldname").text == "Automated Tests":
+                    qa_tests = float(custom_field.find("customfieldvalues").find("customfieldvalue").text)
+
+            if tester:
+                if tester in testers:
+                    testers[tester]["total_qa_hours"] += qa_hours
+                    testers[tester]["total_tests"] += qa_tests
+                else:
+                    testers[tester] = {"total_qa_hours": qa_hours, "total_tests": qa_tests}
+                total_qa_spent += qa_hours
+                total_tests += qa_tests
+
     total_working_hours_team = total_working_hours * len(retro)
 
     data = []
@@ -189,7 +217,7 @@ def retro(filename, start_date, end_date):
                  int((Decimal(total_time_unplanned) / total_time_estimate) * 100),
                  int((Decimal(total_time_spent) / total_working_hours_team) * 100),
                  int((Decimal(total_time_spent_bug) / total_time_spent) * 100)])
-    return total_working_hours, data, unplanned, deferred, done_but_time_left, no_deferral_assignee
+    return total_working_hours, data, unplanned, deferred, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests
 
 
 if __name__ == '__main__':
