@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jira Agile Epic Analysis</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+  
+  
+  <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+  <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  <script>
+  $(function() {
+    $( "#start" ).datepicker({ dateFormat: 'yy-mm-dd' });
+    $( "#end" ).datepicker({ dateFormat: 'yy-mm-dd' });
+  });
+  </script>
+  <style>
+th {
+    background-color: #d9edf7;
+    color: #31708f;
+}
+
+  </style>
+</head>
+<body>
+<div class="container theme-showcase" role="main">
+<div class="header clearfix">    
+    <h3 class="text-muted"></h3>
+</div>
+<div class="jumbotron">
+<h2>Jira Agile Epic Analysis</h2>
+<p>This tool will generate analysis data using Jira API.</p>
+
+<form method="post">
+Project Name: <input type="text" name="project_name" id="project_name">
+Start Date: <input type="text" name="start" id="start"/>
+End Date: <input type="text" name="end" id="end"/>
+<input type="submit" value="Submit" class="btn btn-lg btn-default">
+</form>
+
+</div>
+{% if epics %}
+<table class="table table-bordered">
+<caption>{{project_name}} project epic analysis between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}</strong></caption>
+<caption>Total points: {{total_points}}</caption>
+</table>
+
+{% if developers %}
+<table class="table table-bordered">
+<thead><th>Developers</th><th>Points</th></thead>
+{% for developer in developers %}
+<tr>
+<td>{{developer}}</td>
+<td>{{developers[developer]["points"]}}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% if testers %}
+<table class="table table-bordered">
+<thead><th>QA</th><th>Points</th></thead>
+{% for qa in testers %}
+<tr>
+<td>{{qa}}</td>
+<td>{{testers[qa]["points"]}}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% for epic in epics %}
+<table class="table table-bordered">
+<thead>
+<th>Epic</th>
+<th><a href="https://jira.sidechef.cn/browse/{{epic['key']}}">{{epic['key']}} {{epic['name']}}</a></th>
+</thead>
+<tr>
+<td>Points</td>
+<td>{{epic['points']}}</td>
+</tr>
+<tr>
+<td>Total Hours</td>
+<td>{{epic['total_hours']}}</td>
+</tr>
+<tr>
+<td>Dev Hours</td>
+<td>{{epic['dev_hours']}}</td>
+</tr>
+<tr>
+<td>QA Hours</td>
+<td>{{epic['qa_hours']}}</td>
+</tr>
+<tr>
+<td>Developers</td>
+<td>
+<table class="table table-bordered">
+<thead><th>Developer</th><th>Hours</th><th>Points</th></thead>
+{% for dev in epic['devs'] %}
+<tr><td>{{dev}}</td><td>{{epic['devs'][dev]['hours']}}</td><td>{{epic['devs'][dev]['points']}}</td></tr>
+{% endfor %}
+</table>
+</td>
+</tr>
+<tr>
+<td>QA</td>
+<td>
+<table class="table table-bordered">
+<thead><th>QA</th><th>Hours</th><th>Points</th></thead>
+{% for qa in epic['qas'] %}
+<tr><td>{{qa}}</td><td>{{epic['qas'][qa]['hours']}}</td><td>{{epic['qas'][qa]['points']}}</td></tr>
+{% endfor %}
+</table>
+</td>
+</tr>
+
+<tr>
+<td>Tasks</td>
+<td>
+<table class="table table-bordered">
+<thead><th>Task</th><th>Assignee</th><th>Reviewer</th><th>QA</th><th>Dev Hours</th><th>QA Hours</th></thead>
+{% for task in epic['tasks'] %}
+<tr><td><a href="https://jira.sidechef.cn/browse/{{task['key']}}">{{task['key']}} {{task['name']}}</a></td><td>{{task['developer']}}</td><td>{{task['reviewer']}}</td><td>{{task['tester']}}</td><td>{{task['dev_spent']}}</td><td>{{task['qa_spent']}}</td></tr>
+{% endfor %}
+</table>
+</td>
+</tr>
+
+</table>
+{% endfor %}
+{% endif %}
+
+</body>
+</html>
