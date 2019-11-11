@@ -243,8 +243,9 @@ def serve_epic():
             start_date = request.form['start']
             end_date = request.form['end']
             project_name = request.form['project_name']
-            total_points, developers, testers, epics, errors = analyze_epic(project_name, start_date, end_date)
-            return render_template('epic_analysis.html', project_name=project_name, start_date=start_date, end_date=end_date, total_points=total_points, developers=developers, testers=testers, epics=epics, errors=errors)
+            total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors = analyze_epic(project_name, start_date, end_date)
+            return render_template('epic_analysis.html', project_name=project_name, start_date=start_date, end_date=end_date, total_points=total_points, 
+                                   avg_lead_time=avg_lead_time, avg_efficiency=avg_efficiency, developers=developers, testers=testers, epics=epics, errors=errors)
         except Exception:
             import traceback
             return traceback.format_exc()
@@ -258,6 +259,8 @@ def analyze_epic(project_name, start_date, end_date):
     project_name = project_name.upper()
 
     total_points = 0
+    total_lead_time = 0
+    total_efficiency = 0
     developers = {}
     testers = {}
     epics = []
@@ -280,8 +283,9 @@ def analyze_epic(project_name, start_date, end_date):
                 epic_points = 0
                 if issue['fields']['customfield_10206']:
                     epic_points = issue['fields']['customfield_10206']
-                epic_created = issue['fields']['created']
-                epic_updated = issue['fields']['updated']
+                epic_created = datetime.strptime(issue['fields']['created'][:10], "%Y-%m-%d")
+                epic_ended = datetime.strptime(issue['fields']['updated'][:10], "%Y-%m-%d")
+
                 epic_total_dev_hours = 0.0
                 epic_total_qa_hours = 0.0
                 epic_devs = {}
@@ -293,9 +297,18 @@ def analyze_epic(project_name, start_date, end_date):
                 epic_response = requests.get(epic_url, headers=headers)
                 if epic_response.status_code == 200:
                     epic_response_json = epic_response.json()
+
                     if 'issues' in epic_response_json:
                         epic_issues = epic_response_json['issues']
                         for task in epic_issues:
+
+                            task_created = datetime.strptime(task["fields"]["created"][:10], "%Y-%m-%d")
+                            if task_created < epic_created:
+                                epic_created = task_created  # get the earliest task, in case epic created later
+                            task_updated = datetime.strptime(task["fields"]["updated"][:10], "%Y-%m-%d")
+                            if task_updated > epic_ended:
+                                epic_ended = task_updated  # get the more recent date.  more recent is more greater
+
                             task_key = task["key"]
                             task_name = task["fields"]["summary"]
                             task_developer = task["fields"]["assignee"]["displayName"]
@@ -344,7 +357,9 @@ def analyze_epic(project_name, start_date, end_date):
                                 else:
                                     epic_reviewers[task_reviewer] = {'hours': task_dev_time_spent / 2}
 
-                            task_entries.append({"key": task_key, "name": task_name.encode("utf-8"), "developer": task_developer, "tester": task_tester, "reviewer": task_reviewer, "dev_spent": task_dev_time_spent, "qa_spent": task_qa_time_spent})
+                            task_entries.append({"key": task_key, "name": task_name.encode("utf-8"), "developer": task_developer, "tester": task_tester, "reviewer": task_reviewer, "dev_spent": task_dev_time_spent, "qa_spent": task_qa_time_spent, "created": task_created, "last_updated": task_updated})
+
+                lead_time = (epic_ended - epic_created).days
 
                 for dev in epic_devs:
                     epic_devs[dev]['points'] = epic_points / len(epic_devs)
@@ -360,16 +375,23 @@ def analyze_epic(project_name, start_date, end_date):
                     else:
                         testers[qa] = {"points": epic_points / len(epic_qas)}
                 epic_total_hours = epic_total_dev_hours + epic_total_qa_hours
+                efficiency = epic_points / epic_total_hours
 
-                epic = {"key": epic_key, "name": epic_name, "points": epic_points, "created": epic_created, "ended": epic_updated,
+                epic = {"key": epic_key, "name": epic_name, "points": epic_points, "created": epic_created, "ended": epic_ended,
+                        "lead_time": lead_time,
+                        "efficiency": efficiency,
                         "total_hours": epic_total_hours, "dev_hours": epic_total_dev_hours, "qa_hours": epic_total_qa_hours, "devs": epic_devs,
                         "reviewers": epic_reviewers, "qas": epic_qas, "tasks": task_entries}
 
                 epics.append(epic)
 
                 total_points += epic_points
+                total_lead_time += lead_time
+                total_efficiency += efficiency
 
-    return total_points, developers, testers, epics, errors
+    avg_lead_time = total_lead_time / len(epics)
+    avg_efficiency = total_efficiency / len(epics)
+    return total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors
 
 
 if __name__ == '__main__':
