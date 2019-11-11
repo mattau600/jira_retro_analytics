@@ -156,7 +156,7 @@ def retro(filename, start_date, end_date):
             if done_with_hours_left > 0:  # this is a strange case
                 done_but_time_left.append({"title": title, "assignee": assignee, "hours_left": convert_to_time(done_with_hours_left), "link": link, "updated": item.find('updated').text})
 
-            if hours_estimate > 0 and abs(hours_spent - hours_estimate) / hours_estimate > .20:
+            if hours_estimate > 0.1 and abs(hours_spent - hours_estimate) / hours_estimate > .20:  # 60 seconds is used for QA.
                 misestimated_entry = {"title": title, "assignee": assignee, "hours_estimated": convert_to_time(hours_estimate), "hours_spent": convert_to_time(hours_spent), "over_by": convert_to_time(hours_spent - hours_estimate), "diff": int(round((hours_spent - hours_estimate) / hours_estimate, 2) * 100), "link": link, "created": item.find('created').text, "icon": type_url}
                 if assignee in misestimated:
                     misestimated[assignee].append(misestimated_entry)
