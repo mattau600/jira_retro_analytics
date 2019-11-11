@@ -25,9 +25,9 @@ def serve():
             filename = request.files['xml_file']
             start_date = request.form['start']
             end_date = request.form['end']
-            total_working_hours, data, unplanned, deferred, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests = retro(filename, start_date, end_date)
+            total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests = retro(filename, start_date, end_date)
             return render_template('serve_retro.html', start_date=start_date, end_date=end_date, total_working_hours=total_working_hours,
-                                   data=data, unplanned=unplanned, deferred=deferred, done_but_time_left=done_but_time_left,
+                                   data=data, unplanned=unplanned, deferred=deferred, misestimated=misestimated, done_but_time_left=done_but_time_left,
                                    no_deferral_assignee=no_deferral_assignee, testers=testers, total_qa_spent=total_qa_spent, total_tests=total_tests)
         except Exception:
             import traceback
@@ -74,6 +74,8 @@ def retro(filename, start_date, end_date):
     total_time_spent_bug = 0
     unplanned = {}
     deferred = {}
+    misestimated = {}
+
     done_but_time_left = []
     no_deferral_assignee = []
 
@@ -153,6 +155,14 @@ def retro(filename, start_date, end_date):
             record["total_spent_done"] += hours_spent
             if done_with_hours_left > 0:  # this is a strange case
                 done_but_time_left.append({"title": title, "assignee": assignee, "hours_left": convert_to_time(done_with_hours_left), "link": link, "updated": item.find('updated').text})
+
+            if hours_estimate > 0 and abs(hours_spent - hours_estimate) / hours_estimate > .20:
+                misestimated_entry = {"title": title, "assignee": assignee, "hours_estimated": convert_to_time(hours_estimate), "hours_spent": convert_to_time(hours_spent), "over_by": convert_to_time(hours_spent - hours_estimate), "diff": int(round((hours_spent - hours_estimate) / hours_estimate, 2) * 100), "link": link, "created": item.find('created').text, "icon": type_url}
+                if assignee in misestimated:
+                    misestimated[assignee].append(misestimated_entry)
+                else:
+                    misestimated[assignee] = [misestimated_entry]
+
         elif item.find("resolution").text == "Unresolved":
             deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link, "updated": item.find('updated').text}
             if assignee in deferred:
@@ -223,7 +233,7 @@ def retro(filename, start_date, end_date):
                  int((Decimal(total_time_unplanned) / total_time_estimate) * 100),
                  int((Decimal(total_time_spent) / total_working_hours_team) * 100),
                  int((Decimal(total_time_spent_bug) / total_time_spent) * 100)])
-    return total_working_hours, data, unplanned, deferred, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests
+    return total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests
 
 
 @app.route('/epic/', methods=['GET', 'POST'])

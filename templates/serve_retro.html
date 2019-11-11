@@ -139,6 +139,35 @@ End Date: <input type="text" name="end" id="end"/>
 <p>No deferred tasks.</p>
 {% endif %}
 
+{% if misestimated %}
+<table class="table table-bordered">
+<caption>Misestimated Tasks</caption>
+<thead>
+<th>Assignee</th>
+<th>Summary</th>
+<th>Time Created</th>
+<th>Hours Estimated</th>
+<th>Hours Spent</th>
+<th>Over by</th>
+<th>Difference</th>
+</thead>
+{% for assignee in misestimated %}
+{% for entry in misestimated[assignee] %}
+<tr>
+<td>{{entry['assignee']}}</td>
+<td><img src="{{entry['icon']}}"/> <a href="{{entry['link']}}">{{entry['title']}}</a></td>
+<td>{{entry['created']}}</td>
+<td>{{entry['hours_estimated']}}</td>
+<td>{{entry['hours_spent']}}</td>
+<td>{{entry['over_by']}}</td>
+<td class="{% if entry['diff'] > 0 %}danger{% else %}success{% endif %}" >{{entry['diff']}}%</td>
+</tr>
+{% endfor %}
+{% endfor %}
+{% else %}
+<p>No misestimated tasks.</p>
+{% endif %}
+
 {%if done_but_time_left %}
 <table class="table table-bordered">
 <caption>Tasks marked as "Done" but has time remaining.  This is usually a mistake.</caption>
