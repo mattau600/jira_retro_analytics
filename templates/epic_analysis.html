@@ -113,6 +113,10 @@ End Date: <input type="text" name="end" id="end"/>
 <td>{{epic['dev_hours']}} hours</td>
 </tr>
 <tr>
+<td>Review Hours</td>
+<td>{{epic['review_hours']}} hours</td>
+</tr>
+<tr>
 <td>QA Hours</td>
 <td>{{epic['qa_hours']}} hours</td>
 </tr>
@@ -143,9 +147,9 @@ End Date: <input type="text" name="end" id="end"/>
 <td>Tasks</td>
 <td>
 <table class="table table-bordered">
-<thead><th>Task</th><th>Assignee</th><th>Created</th><th>Last Updated</th><th>Reviewer</th><th>QA</th><th>Dev Hours</th><th>QA Hours</th></thead>
+<thead><th>Task</th><th>Assignee</th><th>Created</th><th>Last Updated</th><th>Reviewer</th><th>QA</th><th>Dev Hours</th><th>Review Hours</th><th>QA Hours</th></thead>
 {% for task in epic['tasks'] %}
-<tr><td><a href="https://jira.sidechef.cn/browse/{{task['key']}}">{{task['key']}} {{task['name']}}</a></td><td>{{task['developer']}}</td><td>{{task['created'].strftime('%Y-%m-%d')}}</td><td>{{task['last_updated'].strftime('%Y-%m-%d')}}</td><td>{{task['reviewer']}}</td><td>{{task['tester']}}</td><td>{{task['dev_spent']}}</td><td>{{task['qa_spent']}}</td></tr>
+<tr><td><a href="https://jira.sidechef.cn/browse/{{task['key']}}">{{task['key']}} {{task['name']}}</a></td><td>{{task['developer']}}</td><td>{{task['created'].strftime('%Y-%m-%d')}}</td><td>{{task['last_updated'].strftime('%Y-%m-%d')}}</td><td>{{task['reviewer']}}</td><td>{{task['tester']}}</td><td>{{task['dev_spent']}}</td><td>{{task['review_spent']}}</td><td>{{task['qa_spent']}}</td></tr>
 {% endfor %}
 </table>
 </td>

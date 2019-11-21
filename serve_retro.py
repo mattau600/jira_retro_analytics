@@ -81,6 +81,7 @@ def retro(filename, start_date, end_date):
 
     testers = {}
     total_qa_spent = 0
+    total_tests = 0
 
     for item in channel.findall('item'):
         assignee = item.find('assignee').text
@@ -156,7 +157,7 @@ def retro(filename, start_date, end_date):
             if done_with_hours_left > 0:  # this is a strange case
                 done_but_time_left.append({"title": title, "assignee": assignee, "hours_left": convert_to_time(done_with_hours_left), "link": link, "updated": item.find('updated').text})
 
-            if hours_estimate > 0.1 and abs(hours_spent - hours_estimate) / hours_estimate > .20:  # 60 seconds is used for QA.
+            if float(hours_estimate) > 0.1 and abs(float(hours_spent) - float(hours_estimate)) / float(hours_estimate) > .20:  # 60 seconds is used for QA.
                 misestimated_entry = {"title": title, "assignee": assignee, "hours_estimated": convert_to_time(hours_estimate), "hours_spent": convert_to_time(hours_spent), "over_by": convert_to_time(hours_spent - hours_estimate), "diff": int(round((hours_spent - hours_estimate) / hours_estimate, 2) * 100), "link": link, "created": item.find('created').text, "icon": type_url}
                 if assignee in misestimated:
                     misestimated[assignee].append(misestimated_entry)
@@ -172,7 +173,6 @@ def retro(filename, start_date, end_date):
 
         qa_hours = 0
         qa_tests = 0
-        total_tests = 0
         tester = None
         custom_fields = item.find("customfields")
         if custom_fields is not None:
@@ -184,7 +184,10 @@ def retro(filename, start_date, end_date):
                 if custom_field.find("customfieldname").text == "Automated Tests":
                     qa_tests = float(custom_field.find("customfieldvalues").find("customfieldvalue").text)
 
-            if tester:
+            if qa_hours or qa_tests:
+                if not tester:  # qa hours or qa tests exist, but no tester set, this is a QA tes
+                    tester = item.find('assignee').attrib['username'].capitalize()  # use the attribute, since this is the one that matches the tester name
+
                 if tester in testers:
                     testers[tester]["total_qa_hours"] += qa_hours
                     testers[tester]["total_tests"] += qa_tests
@@ -244,7 +247,7 @@ def serve_epic():
             end_date = request.form['end']
             project_name = request.form['project_name']
             total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors = analyze_epic(project_name, start_date, end_date)
-            return render_template('epic_analysis.html', project_name=project_name, start_date=start_date, end_date=end_date, total_points=total_points, 
+            return render_template('epic_analysis.html', project_name=project_name, start_date=start_date, end_date=end_date, total_points=total_points,
                                    avg_lead_time=avg_lead_time, avg_efficiency=avg_efficiency, developers=developers, testers=testers, epics=epics, errors=errors)
         except Exception:
             import traceback
@@ -288,6 +291,7 @@ def analyze_epic(project_name, start_date, end_date):
 
                 epic_total_dev_hours = 0.0
                 epic_total_qa_hours = 0.0
+                epic_total_review_hours = 0.0
                 epic_devs = {}
                 epic_reviewers = {}
                 epic_qas = {}
@@ -317,6 +321,13 @@ def analyze_epic(project_name, start_date, end_date):
                                 task_reviewer = task["fields"]["customfield_10200"]["displayName"]
                             else:
                                 task_reviewer = None
+
+                            if task["fields"]["customfield_10400"]:
+                                task_review_time_spent = task["fields"]["customfield_10400"]
+                            else:
+                                task_review_time_spent = 0
+
+                            epic_total_review_hours += task_review_time_spent
 
                             if task["fields"]["customfield_10204"]:
                                 task_qa_time_spent = task["fields"]["customfield_10204"]
@@ -351,13 +362,13 @@ def analyze_epic(project_name, start_date, end_date):
                                 else:
                                     epic_qas[task_tester] = {'hours': task_qa_time_spent}
 
-                            if task_reviewer:
+                            if task_reviewer and task_review_time_spent > 0:
                                 if task_reviewer in epic_reviewers:
-                                    epic_reviewers[task_reviewer]['hours'] += task_dev_time_spent / 2
+                                    epic_reviewers[task_reviewer]['hours'] += task_review_time_spent
                                 else:
-                                    epic_reviewers[task_reviewer] = {'hours': task_dev_time_spent / 2}
+                                    epic_reviewers[task_reviewer] = {'hours': task_review_time_spent}
 
-                            task_entries.append({"key": task_key, "name": task_name.encode("utf-8"), "developer": task_developer, "tester": task_tester, "reviewer": task_reviewer, "dev_spent": task_dev_time_spent, "qa_spent": task_qa_time_spent, "created": task_created, "last_updated": task_updated})
+                            task_entries.append({"key": task_key, "name": task_name.encode("utf-8"), "developer": task_developer, "tester": task_tester, "reviewer": task_reviewer, "dev_spent": task_dev_time_spent, "qa_spent": task_qa_time_spent, "review_spent": task_review_time_spent, "created": task_created, "last_updated": task_updated})
 
                 lead_time = (epic_ended - epic_created).days
 
@@ -374,13 +385,13 @@ def analyze_epic(project_name, start_date, end_date):
                         testers[qa]["points"] += epic_points / len(epic_qas)
                     else:
                         testers[qa] = {"points": epic_points / len(epic_qas)}
-                epic_total_hours = epic_total_dev_hours + epic_total_qa_hours
+                epic_total_hours = epic_total_dev_hours + epic_total_qa_hours + epic_total_review_hours
                 efficiency = epic_points / epic_total_hours
 
                 epic = {"key": epic_key, "name": epic_name, "points": epic_points, "created": epic_created, "ended": epic_ended,
                         "lead_time": lead_time,
                         "efficiency": efficiency,
-                        "total_hours": epic_total_hours, "dev_hours": epic_total_dev_hours, "qa_hours": epic_total_qa_hours, "devs": epic_devs,
+                        "total_hours": epic_total_hours, "dev_hours": epic_total_dev_hours, "qa_hours": epic_total_qa_hours, "review_hours": epic_total_review_hours, "devs": epic_devs,
                         "reviewers": epic_reviewers, "qas": epic_qas, "tasks": task_entries}
 
                 epics.append(epic)
