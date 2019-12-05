@@ -167,7 +167,7 @@ No QAs involved.
 
 </table>
 {% endfor %}
-{% else %}
+{% elif project_name %}
 No closed epics found for {{project_name}} project between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}.
 {% endif %}
 
