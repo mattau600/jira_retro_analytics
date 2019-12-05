@@ -400,8 +400,12 @@ def analyze_epic(project_name, start_date, end_date):
                 total_lead_time += lead_time
                 total_efficiency += efficiency
 
-    avg_lead_time = total_lead_time / len(epics)
-    avg_efficiency = total_efficiency / len(epics)
+    avg_lead_time = 0
+    avg_efficiency = 0
+    if len(epics) > 0:
+        avg_lead_time = total_lead_time / len(epics)
+        avg_efficiency = total_efficiency / len(epics)
+
     return total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors
 
 

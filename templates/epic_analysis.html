@@ -48,6 +48,8 @@ End Date: <input type="text" name="end" id="end"/>
 {% if epics %}
 <table class="table table-bordered">
 <caption>{{project_name}} project epic analysis between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}</strong></caption>
+<caption>Total closed epics: {{epics|length}} epics</option>
+<caption>{{developers|length}} developers and {{testers|length}} testers</caption>
 <caption>Total points: {{total_points}} points</caption>
 <caption>Average lead time: {{avg_lead_time}} days</caption>
 <caption>Average efficiency (pts/hours): {{avg_efficiency|round(4)}}</caption>
@@ -123,23 +125,31 @@ End Date: <input type="text" name="end" id="end"/>
 <tr>
 <td>Developers</td>
 <td>
+{% if epic['devs'] %}
 <table class="table table-bordered">
 <thead><th>Developer</th><th>Hours</th><th>Points</th></thead>
 {% for dev in epic['devs'] %}
 <tr><td>{{dev}}</td><td>{{epic['devs'][dev]['hours']|round(2)}} hours</td><td>{{epic['devs'][dev]['points']|round(2)}} points</td></tr>
 {% endfor %}
 </table>
+{% else %}
+No developers involved.
+{% endif %}
 </td>
 </tr>
 <tr>
 <td>QA</td>
 <td>
+{% if epic['qas'] %}
 <table class="table table-bordered">
 <thead><th>QA</th><th>Hours</th><th>Points</th></thead>
 {% for qa in epic['qas'] %}
 <tr><td>{{qa}}</td><td>{{epic['qas'][qa]['hours']|round(2)}} hours</td><td>{{epic['qas'][qa]['points']|round(2)}} points</td></tr>
 {% endfor %}
 </table>
+{% else %}
+No QAs involved.
+{% endif %}
 </td>
 </tr>
 
@@ -157,6 +167,8 @@ End Date: <input type="text" name="end" id="end"/>
 
 </table>
 {% endfor %}
+{% else %}
+No closed epics found for {{project_name}} project between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}.
 {% endif %}
 
 </body>
