@@ -386,7 +386,10 @@ def analyze_epic(project_name, start_date, end_date):
                     else:
                         testers[qa] = {"points": epic_points / len(epic_qas)}
                 epic_total_hours = epic_total_dev_hours + epic_total_qa_hours + epic_total_review_hours
-                efficiency = epic_points / epic_total_hours
+                if epic_total_hours > 0:
+                    efficiency = epic_points / epic_total_hours
+                else:
+                    continue
 
                 epic = {"key": epic_key, "name": epic_name, "points": epic_points, "created": epic_created, "ended": epic_ended,
                         "lead_time": lead_time,
