@@ -231,11 +231,11 @@ def retro(filename, start_date, end_date):
                  convert_to_time(total_time_left),
                  convert_to_time(total_time_unplanned),
                  convert_to_time(total_time_spent_bug),
-                 int((Decimal(total_time_spent_done) / total_time_estimate_done) * 100),
-                 int((Decimal(total_time_left) / total_time_estimate) * 100),
-                 int((Decimal(total_time_unplanned) / total_time_estimate) * 100),
-                 int((Decimal(total_time_spent) / total_working_hours_team) * 100),
-                 int((Decimal(total_time_spent_bug) / total_time_spent) * 100)])
+                 int((Decimal(total_time_spent_done) / total_time_estimate_done) * 100) if total_time_estimate_done else 0,
+                 int((Decimal(total_time_left) / total_time_estimate) * 100) if total_time_estimate else 0,
+                 int((Decimal(total_time_unplanned) / total_time_estimate) * 100) if total_time_estimate else 0,
+                 int((Decimal(total_time_spent) / total_working_hours_team) * 100) if total_working_hours_team else 0,
+                 int((Decimal(total_time_spent_bug) / total_time_spent) * 100) if total_time_spent else 0])
     return total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests
 
 
@@ -389,7 +389,7 @@ def analyze_epic(project_name, start_date, end_date):
                 if epic_total_hours > 0:
                     efficiency = epic_points / epic_total_hours
                 else:
-                    continue
+                    efficiency = 0
 
                 epic = {"key": epic_key, "name": epic_name, "points": epic_points, "created": epic_created, "ended": epic_ended,
                         "lead_time": lead_time,
