@@ -164,7 +164,7 @@ def retro(filename, start_date, end_date):
                 else:
                     misestimated[assignee] = [misestimated_entry]
 
-        elif item.find("resolution").text == "Unresolved":
+        elif item.find("resolution").text == "Unresolved" and hours_left > 0:
             deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link, "updated": item.find('updated').text}
             if assignee in deferred:
                 deferred[assignee].append(deferred_entry)
