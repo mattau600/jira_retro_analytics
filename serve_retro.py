@@ -1,16 +1,10 @@
 from flask import Flask
 from flask import request, render_template
 from decimal import *
-from importlib import reload
-from requests.auth import HTTPBasicAuth
 
-import xml.etree.ElementTree as ET
-import time
-from datetime import datetime, timedelta, date
-import base64
+from datetime import datetime, timedelta
 import re
 import requests
-import json
 
 import sys
 import importlib
@@ -27,337 +21,83 @@ HOURS_IN_DAY = 6
 def serve():
     if request.method == 'POST':
         try:
-            filename = request.files['xml_file']
-            start_date = request.form['start']
-            end_date = request.form['end']
-            total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests = retro(filename, start_date, end_date)
-            return render_template('serve_retro.html', start_date=start_date, end_date=end_date, total_working_hours=total_working_hours,
+            sprint_id = int(request.form['sprint_id'])
+            view_id = int(request.form['rapid_id'])
+            sprint_name, start_date, end_date, total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests = analyze_issue(sprint_id, view_id)
+
+            return render_template('serve_retro.html', sprint_name=sprint_name, start_date=start_date, end_date=end_date, total_working_hours=total_working_hours,
                                    data=data, unplanned=unplanned, deferred=deferred, misestimated=misestimated, done_but_time_left=done_but_time_left,
                                    no_deferral_assignee=no_deferral_assignee, testers=testers, total_qa_spent=total_qa_spent, total_tests=total_tests)
+
         except Exception:
             import traceback
             return traceback.format_exc()
     else:
-        return render_template('serve_retro.html')
+        return render_template("serve_retro.html")
 
 
 def convert_to_time(time):
     if not time:
         return '0h'
+    positive = True
+    if time < 0:
+        positive = False
+    time = abs(time)
     from math import floor
     hours = floor(time)
     minutes = floor(time * 60 % 60)
 
     if hours and minutes:
-        return str(int(hours)) + 'h' + ' ' + str(int(minutes)) + 'm'
+        result = str(int(hours)) + 'h' + ' ' + str(int(minutes)) + 'm'
     elif hours:
-        return str(int(hours)) + 'h'
+        result = str(int(hours)) + 'h'
     else:
-        return str(int(minutes)) + 'm'
-
-def retro(filename, start_date, end_date):
-
-    tree = ET.parse(filename)
-    root = tree.getroot()
-    channel = root.find("channel")
-
-    start_time = datetime.strptime(start_date, "%Y-%m-%d")
-    end_time = datetime.strptime(end_date, "%Y-%m-%d")
-    daygenerator = (start_time + timedelta(x + 1) for x in range((end_time - start_time).days + 1))
-    working_days = sum(1 for day in daygenerator if day.weekday() < 5)
-
-    total_working_hours = working_days * HOURS_IN_DAY
-
-    retro = {}
-    total_time_spent = 0
-    total_time_estimate = 0
-    total_time_left = 0
-    total_time_estimate_done = 0
-    total_time_spent_done = 0
-    total_time_unplanned = 0
-    total_time_spent_bug = 0
-    unplanned = {}
-    deferred = {}
-    misestimated = {}
-
-    done_but_time_left = []
-    no_deferral_assignee = []
-
-    testers = {}
-    total_qa_spent = 0
-    total_tests = 0
-
-    for item in channel.findall('item'):
-        assignee = item.find('assignee').text
-        title = item.find('title').text
-
-        time_estimate = item.find('timeoriginalestimate')
-
-        if time_estimate is not None:
-            hours_estimate = Decimal(time_estimate.get("seconds")) / 3600
-        else:
-            hours_estimate = 0
-
-        time_left = item.find('timeestimate')
-        if time_left is not None:  # do not consider time left if already marked as done
-            if item.find("resolution").text == 'Done':
-                done_with_hours_left = Decimal(time_left.get("seconds")) / 3600
-                hours_left = 0
-            else:
-                done_with_hours_left = 0
-                hours_left = Decimal(time_left.get("seconds")) / 3600
-        else:
-            done_with_hours_left = 0
-            hours_left = 0
-
-        time_spent = item.find('timespent')
-        if time_spent is not None:
-            hours_spent = Decimal(time_spent.get("seconds")) / 3600
-        else:
-            hours_spent = 0
-
-        type = item.find('type').text
-
-        created_time = datetime.strptime(item.find('created').text, "%a, %d %b %Y %H:%M:%S +0800")
-
-        if assignee in retro:
-            record = retro[assignee]
-        else:
-            record = {"total_estimated": 0, "total_spent": 0, "total_left": 0, "total_estimated_done": 0, "total_spent_done": 0, "total_unplanned": 0, "total_spent_bug": 0}
-            retro[assignee] = record
-
-        total_time_estimate += hours_estimate
-        total_time_left += hours_left
-        total_time_spent += hours_spent
-
-        record["total_estimated"] += hours_estimate
-        record["total_spent"] += hours_spent
-        record["total_left"] += hours_left
-
-        if type == "Bug":
-            total_time_spent_bug += hours_spent
-            record["total_spent_bug"] += hours_spent
-
-        time_diff = created_time - start_time
-
-        link = item.find("link").text
-        type_url = item.find("type").get("iconUrl")
-
-        if time_diff > timedelta(days=1):  # created 1 day after start of sprint
-            total_time_unplanned += hours_spent
-            record["total_unplanned"] += hours_spent
-
-            unplanned_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "hours_spent": convert_to_time(hours_spent), "link": link, "created": item.find('created').text, "icon": type_url}
-            if assignee in unplanned:
-                unplanned[assignee].append(unplanned_entry)
-            else:
-                unplanned[assignee] = [unplanned_entry]
-
-        if item.find("resolution").text == 'Done':
-            total_time_estimate_done += hours_estimate
-            total_time_spent_done += hours_spent
-            record["total_estimated_done"] += hours_estimate
-            record["total_spent_done"] += hours_spent
-            if done_with_hours_left > 0:  # this is a strange case
-                done_but_time_left.append({"title": title, "assignee": assignee, "hours_left": convert_to_time(done_with_hours_left), "link": link, "updated": item.find('updated').text})
-
-            if float(hours_estimate) > 0.1 and abs(float(hours_spent) - float(hours_estimate)) / float(hours_estimate) > .20:  # 60 seconds is used for QA.
-                misestimated_entry = {"title": title, "assignee": assignee, "hours_estimated": convert_to_time(hours_estimate), "hours_spent": convert_to_time(hours_spent), "over_by": convert_to_time(hours_spent - hours_estimate), "diff": int(round((hours_spent - hours_estimate) / hours_estimate, 2) * 100), "link": link, "created": item.find('created').text, "icon": type_url}
-                if assignee in misestimated:
-                    misestimated[assignee].append(misestimated_entry)
-                else:
-                    misestimated[assignee] = [misestimated_entry]
-
-        elif item.find("resolution").text == "Unresolved":
-            deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link, "updated": item.find('updated').text}
-            if assignee in deferred:
-                deferred[assignee].append(deferred_entry)
-            else:
-                deferred[assignee] = [deferred_entry]
-
-        qa_hours = 0
-        qa_tests = 0
-        tester = None
-        custom_fields = item.find("customfields")
-        if custom_fields is not None:
-            for custom_field in custom_fields.findall('customfield'):
-                if custom_field.find("customfieldname").text == "Tester":
-                    tester = custom_field.find("customfieldvalues").find("customfieldvalue").text.capitalize()
-                if custom_field.find("customfieldname").text == "QA Hours":
-                    qa_hours = float(custom_field.find("customfieldvalues").find("customfieldvalue").text)
-                if custom_field.find("customfieldname").text == "Automated Tests":
-                    qa_tests = float(custom_field.find("customfieldvalues").find("customfieldvalue").text)
-
-            if qa_hours or qa_tests:
-                if not tester:  # qa hours or qa tests exist, but no tester set, this is a QA tes
-                    tester = item.find('assignee').attrib['username'].capitalize()  # use the attribute, since this is the one that matches the tester name
-
-                if tester in testers:
-                    testers[tester]["total_qa_hours"] += qa_hours
-                    testers[tester]["total_tests"] += qa_tests
-                else:
-                    testers[tester] = {"total_qa_hours": qa_hours, "total_tests": qa_tests}
-                total_qa_spent += qa_hours
-                total_tests += qa_tests
-
-    total_working_hours_team = total_working_hours * len(retro)
-
-    data = []
-
-    for assignee, record in retro.items():
-
-        try:
-            data.append([assignee,
-                         convert_to_time(record["total_estimated"]),
-                         convert_to_time(record["total_estimated_done"]),
-                         convert_to_time(record["total_spent_done"]),
-                         convert_to_time(record["total_spent"]),
-                         convert_to_time(record["total_left"]),
-                         convert_to_time(record["total_unplanned"]),
-                         convert_to_time(record["total_spent_bug"]),
-                         int((Decimal(record["total_spent_done"]) / record["total_estimated_done"]) * 100),
-                         int((Decimal(record["total_left"]) / record["total_estimated"]) * 100),
-                         int((Decimal(record["total_unplanned"]) / record["total_estimated"]) * 100),
-                         int((Decimal(record["total_spent"]) / total_working_hours) * 100),
-                         int((Decimal(record["total_spent_bug"]) / record["total_spent_done"]) * 100)])
-
-            if Decimal(record["total_left"]) == 0:
-                no_deferral_assignee.append(assignee)
-        except (ZeroDivisionError, InvalidOperation):
-            # we do not consider staff with 0 hours, as they are probably not team members
-            pass
-
-    data.append(["Total",
-                 convert_to_time(total_time_estimate),
-                 convert_to_time(total_time_estimate_done),
-                 convert_to_time(total_time_spent_done),
-                 convert_to_time(total_time_spent),
-                 convert_to_time(total_time_left),
-                 convert_to_time(total_time_unplanned),
-                 convert_to_time(total_time_spent_bug),
-                 int((Decimal(total_time_spent_done) / total_time_estimate_done) * 100) if total_time_estimate_done else 0,
-                 int((Decimal(total_time_left) / total_time_estimate) * 100) if total_time_estimate else 0,
-                 int((Decimal(total_time_unplanned) / total_time_estimate) * 100) if total_time_estimate else 0,
-                 int((Decimal(total_time_spent) / total_working_hours_team) * 100) if total_working_hours_team else 0,
-                 int((Decimal(total_time_spent_bug) / total_time_spent) * 100) if total_time_spent else 0])
-    return total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests
-@app.route('/batch', methods=['GET', 'POST'])
+        result = str(int(minutes)) + 'm'
+    return result if positive else "-" + result
 
 
-def serve_batch():
-    if request.method == 'POST':
-        try:
-            start_time = request.form['logStart']
-            #success = get_worklogs(start_time)
-            success = analyze_batch()
-            return render_template('batch.html', success = success)
-        except Exception:
-            import traceback
-            return traceback.format_exc()
-    else:
-        return render_template('batch.html')
+def get_hours_spent_from_worklog(worklogs, start, end):
+    time = 0
+    if worklogs and 'worklogs' in worklogs:
+        for worklog in worklogs['worklogs']:
+            worklog_time = datetime.strptime(worklog['created'], "%Y-%m-%dT%H:%M:%S.000+0800")
+            if worklog_time > start and worklog_time < end:
+                time += worklog["timeSpentSeconds"]
+    return time
 
 
-def get_worklogs(start_time):
-    #start_date = start_time
-    #start_date =  datetime.strptime(start_time, "%Y-%m-%d")
-    start_date = time.mktime(datetime.strptime(start_time, "%Y-%m-%d").timetuple()) * 1000
-    start_date = str(int(start_date))
-    headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Basic ' + 'R2l0bGFiOmhGVmRXd3h5WDU1dg=='
-
-        #"Content-Type": "application/json"
-    }
-    url = "https://jira.sidechef.cn/rest/api/2/worklog/updated?since=" + start_date
-    response = requests.request("GET", url, headers=headers)
-    if response.status_code == 200:
-        batch_call = response.json()
-        #for log in batch_call:
-        #    worklog_id = [item['worklogId'] for item in log if log["updateTime"] > 1600748499000]
-        worklog_id = [log['updatedTime'] for log in batch_call['values']]# if log['updatedTime'] > 1600748499000]
-        return batch_call
-        #else:
-        #    return batch_call
-    else:
-        return "Something went wrong"
-
-def analyze_batch():
-    headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Basic ' + 'R2l0bGFiOmhGVmRXd3h5WDU1dg==',
-        "Content-Type": "application/json"
-    }
-    url = "https://jira.sidechef.cn/rest/api/2/worklog/list"
-
-    payload = json.dumps({
-      "ids": [
-        37297
-      ]
-      })
-    response = requests.request("POST", url, headers=headers, data=payload)
-    if response.status_code == 200:
-        batch_call = response.json()
-        batch_call = json.dumps(batch_call)
-        return (batch_call)
-    else:
-        return (response)
-@app.route('/test/', methods=['GET', 'POST'])
-def serve_issue():
-    #auth = HTTPBasicAuth("matt@sidechef.com", "R2l0bGFiOmhGVmRXd3h5WDU1dg==")
-    if request.method == 'POST':
-        try:
-            #issue = request.form['issue']
-            sprintId = request.form['sprintId']
-            viewId = request.form['rapidId']
-            #assignee, title, time_estimate = analyze_issue(issue)
-            #filename = "file"
-            total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests = analyze_issue(sprintId, viewId)
-            #test_var = analyze_issue(sprintId, viewId)
-            return render_template('test.html', start_date=sprintId, end_date=viewId, total_working_hours=total_working_hours,
-                                   data=data, unplanned=unplanned, deferred=deferred, misestimated=misestimated, done_but_time_left=done_but_time_left,
-                                   no_deferral_assignee=no_deferral_assignee, testers=testers, total_qa_spent=total_qa_spent, total_tests=total_tests)
-            return render_template("batch.html", success=test_var)
-
-        except Exception:
-            import traceback
-            return traceback.format_exc()
-    else:
-        return render_template("test.html")
-
-def convert_to_time(time):
-    if not time:
-        return '0h'
-    from math import floor
-    hours = floor(time)
-    minutes = floor(time * 60 % 60)
-
-    if hours and minutes:
-        return str(int(hours)) + 'h' + ' ' + str(int(minutes)) + 'm'
-    elif hours:
-        return str(int(hours)) + 'h'
-    else:
-        return str(int(minutes)) + 'm'
-
-def analyze_issue(sprintId, viewId):
-    #issue = re.sub(r'\W+', '-', issue)
+def analyze_issue(sprint_id, view_id):
     headers = {
         'Accept': 'application/json',
         'Authorization': 'Basic ' + 'R2l0bGFiOmhGVmRXd3h5WDU1dg=='
     }
-    url = "https://jira.sidechef.cn/rest/greenhopper/latest/rapid/charts/sprintreport?rapidViewId="+ viewId + "&sprintId=" + sprintId
+    url = "https://jira.sidechef.cn/rest/greenhopper/latest/rapid/charts/sprintreport?rapidViewId=" + str(view_id) + "&sprintId=" + str(sprint_id)
     response = requests.request("GET", url, headers=headers)
     if response.status_code == 200:
         api_info = response.json()
-        if 'contents' in api_info:
 
-            completedIssues = api_info['contents']['completedIssues']
-            #issue = completedIssues[0]['key']
-            start_time = datetime.strptime(api_info['sprint']['startDate'], "%d/%b/%y %I:%M %p")
-            end_time = datetime.strptime(api_info['sprint']['endDate'], "%d/%b/%y %I:%M %p")
+        start_date = api_info['sprint']['startDate']
+        end_date = api_info['sprint']['endDate']
+        sprint_name = api_info['sprint']['name']
+        start_time = datetime.strptime(api_info['sprint']['startDate'], "%d/%b/%y %I:%M %p")
+        end_time = datetime.strptime(api_info['sprint']['endDate'], "%d/%b/%y %I:%M %p")
+
+        daygenerator = (start_time + timedelta(x + 1) for x in range((end_time - start_time).days + 1))
+        working_days = sum(1 for day in daygenerator if day.weekday() < 5) - 1  # do not include planning day
+        total_working_hours = working_days * HOURS_IN_DAY
+
+        completed_issues = [i["key"] for i in api_info['contents']['completedIssues']]
+        deferred_issues = [i["key"] for i in api_info['contents']['issuesNotCompletedInCurrentSprint'] + api_info['contents']['puntedIssues']]
+        issues = completed_issues + deferred_issues
+        unplanned_issues_dict = api_info['contents']['issueKeysAddedDuringSprint']
+
+        issues_url = "https://jira.sidechef.cn/rest/api/2/search?jql=issueKey%20in%20(" + ",".join(issues) + ")&maxResults=300&fields=key,summary,timespent,timeestimate,created,issuetype,assignee,status,timeoriginalestimate,updated,customfield_10204,customfield_10201,customfield_10205,worklog"
+        response = requests.request("GET", issues_url, headers=headers)
+        if response.status_code == 200:
+            issue_json = response.json()
 
             retro = {}
-            total_time_spent = 0
+            total_time_spent_in_sprint = 0
             total_time_estimate = 0
             total_time_left = 0
             total_time_estimate_done = 0
@@ -375,110 +115,81 @@ def analyze_issue(sprintId, viewId):
             total_qa_spent = 0
             total_tests = 0
 
-            for item in completedIssues:
+            for item in issue_json["issues"]:
 
                 issue = item['key']
-                assignee = item['assigneeName']
-                title = item['summary']
-                if 'value' in item['currentEstimateStatistic']['statFieldValue']:
-                    time_estimate = item['currentEstimateStatistic']['statFieldValue']['value']
-                else:
-                    time_estimate = 0
+                assignee = item['fields']['assignee']['displayName']
+                title = '[' + item['key'] + '] ' + item['fields']['summary']
+                type = item['fields']['issuetype']['name']
+                created_time = datetime.strptime(item['fields']['created'], "%Y-%m-%dT%H:%M:%S.000+0800")
+                updated_time = datetime.strptime(item['fields']['updated'], "%Y-%m-%dT%H:%M:%S.000+0800")
 
-                daygenerator = (start_time + timedelta(x + 1) for x in range((end_time - start_time).days + 1))
-                working_days = sum(1 for day in daygenerator if day.weekday() < 5)
+                hours_spent = int(item['fields']['timespent'] or 0) / 3600
+                hours_spent_in_sprint = get_hours_spent_from_worklog(item['fields']['worklog'], start_time, end_time) / 3600
 
-                total_working_hours = working_days * HOURS_IN_DAY
-
-                if time_estimate is not None:
-                    hours_estimate = Decimal(time_estimate) / 3600
-                else:
-                    hours_estimate = 0
-
-                time_left = item['trackingStatistic']['statFieldValue']['value']
-                if time_left is not None:  # do not consider time left if already marked as done
-                    if item['done'] == True:
-                        done_with_hours_left = Decimal(time_left) / 3600
-                        hours_left = 0
-                    else:
-                        done_with_hours_left = 0
-                        hours_left = Decimal(time_left) / 3600
-                else:
-                    done_with_hours_left = 0
+                if item['fields']['status']['name'] == "Done":
+                    time_estimate = int(item['fields']['timeoriginalestimate'] or 0)
+                    hours_estimate = time_estimate / 3600
+                    time_left = 0
+                    done_with_hours_left = time_left / 3600
                     hours_left = 0
-                if 'value' in item['estimateStatistic']['statFieldValue']:
-                    hours_spent = item['estimateStatistic']['statFieldValue']['value']
-                    if hours_spent is not None:
-                        hours_spent = Decimal(hours_spent) / 3600
-                    elif item['trackingStatistic']['statFieldValue']['value'] == 0:
-                        hours_spent = Decimal(item['trackingStatistic']['statFieldValue']['value']) /3600
-                else:
-                    if 'value' in item['currentEstimateStatistic']['statFieldValue']:
-                        hours_spent = Decimal(item['currentEstimateStatistic']['statFieldValue']['value']) /3600
-                    else:
-                        hours_spent = 0
-                if item['typeId'] == "10002":
-                    type = 'task'
-                elif item['typeId'] == "10004":
-                    type = 'Bug'
-
-                #created_time = datetime.strptime(fields['created'], "%Y-%m-%dT%H:%M:%S.000+0800")
+                else:  # not done yet, we are not using it to calculate estimation accuracy
+                    time_estimate = hours_estimate = 0
+                    time_left = int(item['fields']['timeestimate'] or 0)
+                    done_with_hours_left = 0
+                    hours_left = time_left / 3600
 
                 if assignee in retro:
                     record = retro[assignee]
                 else:
-                    record = {"total_estimated": 0, "total_spent": 0, "total_left": 0, "total_estimated_done": 0, "total_spent_done": 0, "total_unplanned": 0, "total_spent_bug": 0}
+                    record = {"total_estimated": 0, "total_spent": 0, "total_left": 0, "total_estimated_done": 0, "total_spent_done": 0, "total_unplanned": 0, "total_spent_bug": 0, "total_spent_in_sprint": 0, "created": created_time}
                     retro[assignee] = record
 
                 total_time_estimate += hours_estimate
                 total_time_left += hours_left
-                total_time_spent += hours_spent
+                total_time_spent_in_sprint += hours_spent_in_sprint
 
                 record["total_estimated"] += hours_estimate
                 record["total_spent"] += hours_spent
                 record["total_left"] += hours_left
+                record["total_spent_in_sprint"] += hours_spent_in_sprint
 
                 if type == "Bug":
                     total_time_spent_bug += hours_spent
                     record["total_spent_bug"] += hours_spent
 
-                #time_diff = created_time - start_time
-
                 link = "https://jira.sidechef.cn/browse/" + issue
-                #type_url = fields['issuetype']['iconUrl']
+                type_url = item['fields']['issuetype']['iconUrl']
 
-
-                #for task in completedIssues['issueKeysAddedDuringSprint']:  # created 1 day after start of sprint
-                #total_time_unplanned = completedIssues['key']
-                #total_time_unplanned += hours_spent
-                #Unplanned tasks
-                if item['key'] in api_info['contents']['issueKeysAddedDuringSprint']:
+                # Unplanned tasks
+                if issue in unplanned_issues_dict:
                     total_time_unplanned += hours_spent
 
-                    unplanned_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "hours_spent": convert_to_time(hours_spent), "link": link}
+                    unplanned_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "hours_spent": convert_to_time(hours_spent), "hours_spent_in_sprint": convert_to_time(hours_spent_in_sprint), "link": link, "created": created_time, "icon": type_url}
                     if assignee in unplanned:
                         unplanned[assignee].append(unplanned_entry)
                     else:
                         unplanned[assignee] = [unplanned_entry]
                     record["total_unplanned"] += hours_spent
 
-                if item['done'] == True:
+                if item['fields']['status']['name'] in ["Done", "QA", "Code Review"]:
                     total_time_estimate_done += hours_estimate
                     total_time_spent_done += hours_spent
                     record["total_estimated_done"] += hours_estimate
                     record["total_spent_done"] += hours_spent
+                    record["total_spent_in_sprint"] + hours_spent_in_sprint
                     if done_with_hours_left > 0:  # this is a strange case
                         done_but_time_left.append({"title": title, "assignee": assignee, "hours_left": convert_to_time(done_with_hours_left), "link": link})
 
                     if float(hours_estimate) > 0.1 and abs(float(hours_spent) - float(hours_estimate)) / float(hours_estimate) > .20:  # 60 seconds is used for QA.
-                        misestimated_entry = {"title": title, "assignee": assignee, "hours_estimated": convert_to_time(hours_estimate), "hours_spent": convert_to_time(hours_spent), "over_by": convert_to_time(hours_spent - hours_estimate), "diff": int(round((hours_spent - hours_estimate) / hours_estimate, 2) * 100), "link": link}
+                        misestimated_entry = {"title": title, "assignee": assignee, "hours_estimated": convert_to_time(hours_estimate), "hours_spent": convert_to_time(hours_spent), "over_by": convert_to_time(hours_spent - hours_estimate), "diff": int(round((hours_spent - hours_estimate) / hours_estimate, 2) * 100), "link": link, "created": created_time, "icon": type_url}
                         if assignee in misestimated:
                             misestimated[assignee].append(misestimated_entry)
                         else:
                             misestimated[assignee] = [misestimated_entry]
 
-                elif item["done"] != True: #tasks may be 'done', but remain in "issues not completed in sprint"
-                    deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link}
+                elif issue in deferred_issues and hours_left > 0.1:  # tasks may be 'done', but remain in "issues not completed in sprint", greater than 60 seconds
+                    deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link, "icon": type_url, "updated": updated_time, "status": item['fields']['status']['name']}
                     if assignee in deferred:
                         deferred[assignee].append(deferred_entry)
                     else:
@@ -488,86 +199,26 @@ def analyze_issue(sprintId, viewId):
                 qa_tests = 0
                 tester = None
 
-            #custom_fields = item.find("customfields")
-            #if custom_fields is not None:
-            #    for custom_field in custom_fields.findall('customfield'):
-            #        if custom_field.find("customfieldname").text == "Tester":
-            #            tester = custom_field.find("customfieldvalues").find("customfieldvalue").text.capitalize()
-            #        if custom_field.find("customfieldname").text == "QA Hours":
-            #            qa_hours = float(custom_field.find("customfieldvalues").find("customfieldvalue").text)
-            #        if custom_field.find("customfieldname").text == "Automated Tests":
-            #            qa_tests = float(custom_field.find("customfieldvalues").find("customfieldvalue").text)
-            deferred_tasks = api_info['contents']['puntedIssues']
-            for punted_task in deferred_tasks: #accounting if the task was removed from the Sprint
-                title = punted_task['summary']
-                assignee = punted_task['assigneeName']
-                key = punted_task['key']
-                link = "https://jira.sidechef.cn/browse/" + key
-                if punted_task['done'] == True:
-                    if 'value' in punted_task['trackingStatistic']['statFieldValue']:
-                        hours_left = punted_task['trackingStatistic']['statFieldValue']['value']
-                    else:
-                        hours_left = punted_task['estimateStatistic']['statFieldValue']['value']
-                    if 'value' in punted_task['trackingStatistic']['statFieldValue'] and 'value' in  punted_task['currentEstimateStatistic']['statFieldValue']:
-                        hours_spent = punted_task['currentEstimateStatistic']['statFieldValue']['value'] - punted_task['trackingStatistic']['statFieldValue']['value']
-                    else:
-                        hours_spent = 0
+                if "customfield_10201" in item['fields'] and item['fields']['customfield_10201']:  # QA Tester
+                    tester = item['fields']['customfield_10201']['displayName']
+                if "customfield_10204" in item['fields'] and item['fields']['customfield_10204']:  # QA Hours
+                    qa_hours = item['fields']['customfield_10204']
+                if "customfield_10205" in item['fields'] and item['fields']['customfield_10205']:  # Automated tests
+                    qa_tests = item['fields']['customfield_10205']
 
-                    if hours_spent is not None:
-                        hours_spent = Decimal(hours_spent) / 3600
-                    else:
-                        hours_spent = 0
-                    if hours_left is not None:
-                        hours_left = Decimal(hours_left) / 3600
-                    else:
-                        hours_left = 0
-                    deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link}
-                    if assignee in deferred:
-                        deferred[assignee].append(deferred_entry)
-                    else:
-                        deferred[assignee] = [deferred_entry]
-                    if punted_task['key'] in api_info['contents']['issueKeysAddedDuringSprint']:
-                        unplanned_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "hours_spent": convert_to_time(hours_spent), "link": link}
-                        if assignee in unplanned:
-                            unplanned[assignee].append(unplanned_entry)
-                        else:
-                            unplanned[assignee] = [unplanned_entry]
-                    record["total_unplanned"] += hours_spent
-                #Tasks incomplete during sprint
-            incomplete = api_info['contents']['issuesNotCompletedInCurrentSprint']
-            time_spent_on_incomplete = 0
-            hours_left = 0
-            hours_worked = 0
-            for issue in incomplete:
-                title = issue['summary']
-                assignee = issue['assigneeName']
-                key = issue['key']
-                link = "https://jira.sidechef.cn/browse/" + key
-                if assignee in retro:
-                    record = retro[assignee]
-                else:
-                    record = {"total_estimated": 0, "total_spent": 0, "total_left": 0, "total_estimated_done": 0, "total_spent_done": 0, "total_unplanned": 0, "total_spent_bug": 0}
-                    retro[assignee] = record
+                if qa_hours or qa_tests:
+                    if not tester:  # qa hours or qa tests exist, but no tester set, this is a QA test
+                        tester = item['fields']['assignee']['displayName']
 
-                #total_time_estimate += hours_estimate
-                #total_time_left += hours_left
-                #total_time_spent += hours_spent
-                if 'value' in issue['currentEstimateStatistic']['statFieldValue'] and 'value' in issue['trackingStatistic']['statFieldValue']:
-                    hours_worked = issue['currentEstimateStatistic']['statFieldValue']['value'] - issue['trackingStatistic']['statFieldValue']['value']
-                    hours_worked = hours_worked/3600
-                    if hours_worked == 0:
-                        hours_left = issue['currentEstimateStatistic']['statFieldValue']['value'] / 3600
-                deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link}
-                if assignee in deferred:
-                    deferred[assignee].append(deferred_entry)
-                else:
-                    deferred[assignee] = [deferred_entry]
-                time_spent_on_incomplete+= Decimal(hours_worked)
-                record['total_spent']+= Decimal(hours_worked)
-                record['total_left']+= Decimal(hours_left)
+                    if tester in testers:
+                        testers[tester]["total_qa_hours"] += qa_hours
+                        testers[tester]["total_tests"] += qa_tests
+                    else:
+                        testers[tester] = {"total_qa_hours": qa_hours, "total_tests": qa_tests}
+                    total_qa_spent += qa_hours
+                    total_tests += qa_tests
 
             total_working_hours_team = total_working_hours * len(retro)
-
             data = []
 
             for assignee, record in retro.items():
@@ -577,15 +228,15 @@ def analyze_issue(sprintId, viewId):
                                  convert_to_time(record["total_estimated"]),
                                  convert_to_time(record["total_estimated_done"]),
                                  convert_to_time(record["total_spent_done"]),
-                                 convert_to_time(record["total_spent"]),
+                                 convert_to_time(record["total_spent_in_sprint"]),
                                  convert_to_time(record["total_left"]),
                                  convert_to_time(record["total_unplanned"]),
                                  convert_to_time(record["total_spent_bug"]),
-                                 int((Decimal(record["total_spent_done"]) / record["total_estimated_done"]) * 100),
-                                 int((Decimal(record["total_left"]) / record["total_estimated"]) * 100),
-                                 int((Decimal(record["total_unplanned"]) / record["total_estimated"]) * 100),
-                                 int((Decimal(record["total_spent"]) / total_working_hours) * 100),
-                                 int((Decimal(record["total_spent_bug"]) / record["total_spent_done"]) * 100)])
+                                 int((record["total_spent_done"] / record["total_estimated_done"]) * 100),
+                                 int((record["total_left"] / record["total_estimated"]) * 100),
+                                 int((record["total_unplanned"] / record["total_estimated"]) * 100),
+                                 int((record["total_spent_in_sprint"] / total_working_hours) * 100),
+                                 int((record["total_spent_bug"] / record["total_spent_done"]) * 100)])
 
                     if Decimal(record["total_left"]) == 0:
                         no_deferral_assignee.append(assignee)
@@ -598,21 +249,22 @@ def analyze_issue(sprintId, viewId):
                          convert_to_time(total_time_estimate),
                          convert_to_time(total_time_estimate_done),
                          convert_to_time(total_time_spent_done),
-                         convert_to_time(total_time_spent),
+                         convert_to_time(total_time_spent_in_sprint),
                          convert_to_time(total_time_left),
                          convert_to_time(total_time_unplanned),
                          convert_to_time(total_time_spent_bug),
-                         int((Decimal(total_time_spent_done) / total_time_estimate_done) * 100) if total_time_estimate_done else 0,
-                         int((Decimal(total_time_left) / total_time_estimate) * 100) if total_time_estimate else 0,
-                         int((Decimal(total_time_unplanned) / total_time_estimate) * 100) if total_time_estimate else 0,
-                         int((Decimal(total_time_spent) / total_working_hours_team) * 100) if total_working_hours_team else 0,
-                         int((Decimal(total_time_spent_bug) / total_time_spent) * 100) if total_time_spent else 0])
-            #tester = record['total_left']
-        #return hours_left
-        return total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests
+                         int((total_time_spent_done / total_time_estimate_done) * 100) if total_time_estimate_done else 0,
+                         int((total_time_left / total_time_estimate) * 100) if total_time_estimate else 0,
+                         int((total_time_unplanned / total_time_estimate) * 100) if total_time_estimate else 0,
+                         int((total_time_spent_in_sprint / total_working_hours_team) * 100) if total_working_hours_team else 0,
+                         int((total_time_spent_bug / total_time_spent_in_sprint) * 100) if total_time_spent_in_sprint else 0])
+
+            return sprint_name, start_date, end_date, total_working_hours, data, unplanned, deferred, misestimated, done_but_time_left, no_deferral_assignee, testers, total_qa_spent, total_tests
+        else:
+            raise Exception("issues api request failed: " + url + " " + issues_url)
     else:
-        import traceback
-        return traceback.format_exc()
+        raise Exception("api request failed: " + url)
+
 
 @app.route('/epic/', methods=['GET', 'POST'])
 def serve_epic():
@@ -621,9 +273,9 @@ def serve_epic():
             start_date = request.form['start']
             end_date = request.form['end']
             project_name = request.form['project_name']
-            total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors, test_response = analyze_epic(project_name, start_date, end_date)
+            total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors = analyze_epic(project_name, start_date, end_date)
             return render_template('epic_analysis.html', project_name=project_name, start_date=start_date, end_date=end_date, total_points=total_points,
-                                   avg_lead_time=avg_lead_time, avg_efficiency=avg_efficiency, developers=developers, testers=testers, epics=epics, errors=errors, response_json = test_response)
+                                   avg_lead_time=avg_lead_time, avg_efficiency=avg_efficiency, developers=developers, testers=testers, epics=epics, errors=errors)
         except Exception:
             import traceback
             return traceback.format_exc()
@@ -636,7 +288,6 @@ def analyze_epic(project_name, start_date, end_date):
     re.sub(r'\W+', '', project_name)  # sanitize the project_name
     project_name = project_name.upper()
 
-    test_response = ''
     total_points = 0
     total_lead_time = 0
     total_efficiency = 0
@@ -648,13 +299,12 @@ def analyze_epic(project_name, start_date, end_date):
         'Accept': 'application/json',
         'Authorization': 'Basic ' + 'R2l0bGFiOmhGVmRXd3h5WDU1dg=='
     }
-    #auth = HTTPBasicAuth("gball712@gmail.com", "R2l0bGFiOmhGVmRXd3h5WDU1dg==")
+
     jira_url = "https://jira.sidechef.cn/rest/api/2/search?maxResults=500&jql=project%20%3D%20" + project_name + "%20and%20type%3Depic%20and%20created%20>%20%27" + start_date + "%27%20and%20created%20<%20%27" + end_date + "%27%20and%20cf%5B10003%5D%3DDone"
     response = requests.request("GET", jira_url, headers=headers)
 
     if response.status_code == 200:
         response_json = response.json()
-
         if 'issues' in response_json:
             issues = response_json['issues']
             for issue in issues:
@@ -786,19 +436,8 @@ def analyze_epic(project_name, start_date, end_date):
         avg_lead_time = total_lead_time / len(epics)
         avg_efficiency = total_efficiency / len(epics)
 
-    return total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors, test_response
-@app.route('/batch/', methods=['GET', 'POST'])
-def fetch():
-    headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Basic ' + 'R2l0bGFiOmhGVmRXd3h5WDU1dg=='
-    }
-    url = "https://jira.sidechef.cn/rest/greenhopper/latest/rapid/charts/sprintreport?rapidViewId=9&sprintId=71"
-    response = requests.request("GET", url, headers=headers)
-    if response.status_code == 200:
-        return render_template('batch.html', success='yes')
-    else:
-        return render_template('batch.html', success='no')
+    return total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors
+
 
 if __name__ == '__main__':
     app.run(debug=True)

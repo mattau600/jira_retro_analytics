@@ -6,20 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Jira Agile Retrospective Analysis</title>
   <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
-  
+
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
-  
-  
+
+
   <script src="//code.jquery.com/jquery-1.10.2.js"></script>
   <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
-  <script>
-  $(function() {
-    $( "#start" ).datepicker({ dateFormat: 'yy-mm-dd' });
-    $( "#end" ).datepicker({ dateFormat: 'yy-mm-dd' });
-  });
-  </script>
   <style>
 th {
     background-color: #d9edf7;
@@ -30,7 +24,7 @@ th {
 </head>
 <body>
 <div class="container theme-showcase" role="main">
-<div class="header clearfix">    
+<div class="header clearfix">
     <h3 class="text-muted"></h3>
 </div>
 <div class="jumbotron">
@@ -38,23 +32,21 @@ th {
 <p>This tool will generate analysis data using Jira Agile exported xml report.</p>
 
 <form method="post" enctype="multipart/form-data">
-Jira Issues XML File: <input type="file" name="xml_file" size="40"/>
-<p><li>To get the Jira Issues XML file, go to Sprint Report at the end of the sprint, click "View ... in Issue Navigator" on the upper right, Export, and XML.  Then save the file to your computer.</li></p>
-Start Date: <input type="text" name="start" id="start"/>
-End Date: <input type="text" name="end" id="end"/>
+RapidView ID: <input type="text" name="rapid_id" id="rapid_id"/>
+SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
 <input type="submit" value="Submit" class="btn btn-lg btn-default">
 </form>
 
 </div>
 {% if data %}
 <table class="table table-bordered">
-<caption>Sprint is between <strong>{{ start_date }}</strong> to <strong>{{ end_date }}</strong> for a total of <strong>{{ total_working_hours }}</strong> working hours.</caption>
+<caption>{{ sprint_name }} is between <strong>{{ start_date }}</strong> to <strong>{{ end_date }}</strong> for a total of <strong>{{ total_working_hours }}</strong> working hours.</caption>
 <thead>
    <th>Assignee</th>
    <th>Estimated</th>
    <th>Est (Done)</th>
    <th>Spent (Done)</th>
-   <th>Spent</th>
+   <th>Spent (In Sprint)</th>
    <th>Deferred</th>
    <th>Unplanned</th>
    <th>Bugs</th>
@@ -121,6 +113,7 @@ End Date: <input type="text" name="end" id="end"/>
 <thead>
 <th>Assignee</th>
 <th>Summary</th>
+<th>Status</th>
 <th>Time Updated</th>
 <th>Hours Left</th>
 </thead>
@@ -128,7 +121,8 @@ End Date: <input type="text" name="end" id="end"/>
 {% for entry in deferred[assignee] %}
 <tr>
 <td>{{entry['assignee']}}</td>
-<td><a href="{{entry['link']}}">{{entry['title']}}</a></td>
+<td><img src="{{entry['icon']}}"/> <a href="{{entry['link']}}">{{entry['title']}}</a></td>
+<td>{{entry['status']}}</td>
 <td>{{entry['updated']}}</td>
 <td>{{entry['hours_left']}}</td>
 </tr>
@@ -211,14 +205,16 @@ End Date: <input type="text" name="end" id="end"/>
 {% endif %}
 
 <div class="well">
-<ul> 
-<li>"Est (Done)" indicates the total hours estimated on tasks that are moved to Done.  It does not include estimates on incomplete tasks, but will include estimates of unplanned tasks.</li>
-<li>"Spent (Done)" indicates the total hours spent on tasks are that moved to Done.  It does not include time spent on incomplete tasks, but will include time spent on unplanned tasks.</li>
-<li>"% Est Accurancy" is "Estimate (Done)" divided by "Spent" hours.  Over a 100% means the team member has underestimated the tasks, and should have put higher estimates.  Under a 100% means the team member overestimated and should have put lower estimates.  Target is 100%.</li>
+<ul>
+<li>"Est (Done)" indicates the total hours estimated on tasks in this sprint that are moved to Done.  It does not include estimates on incomplete tasks, but will include estimates of unplanned tasks.</li>
+<li>"Spent (Done)" indicates the total hours spent on tasks are that moved to Done.  It does not include time spent on incomplete tasks, but will include time spent on unplanned tasks.  It will also include time spent from previous sprints.</li>
+<li>"Spent (In Sprint)" indicates the total hours spent on tasks are within the current sprint by looking at work log.  It assumes that a single person will work on a task.</li>
+<li>"% Est Accurancy" is "Estimate (Done)" divided by "Spent (Done)" hours.  Over a 100% means the team member has underestimated the tasks, and should have put higher estimates.  Under a 100% means the team member overestimated and should have put lower estimates.  Target is 100%.  It also assumes that task is owned by a single owner.</li>
 <li>"% Amt Deferred" is "Deferred" divided by "Estimated."  Target is 0%.</li>
 <li>"% Unplanned" is "Unplanned" divided by "Estimated."  Target is 0%.</li>
 <li>"% Utilized" is "Spent" divided by Working hours for the sprint.  Target is 100%.</li>
-<li>A task is considered unplanned if it is created after the start date.</li>
+<li>"% Bugs" is percentage of hours speint on tasks completed in sprint that are bugs.  This will include hours spent for the completed tasks that were started in previous sprints.</li>
+<li>A task is considered unplanned if it is moved into the sprint after the sprint has started.</li>
 <li>A task is considered misestimated if its hours spent is different from hours estimated by 20%</li>
 </ul>
 </div>
