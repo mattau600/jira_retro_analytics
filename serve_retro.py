@@ -69,7 +69,7 @@ def get_hours_spent_from_worklog(worklogs, start, end):
 def analyze_issue(sprint_id, view_id):
     headers = {
         'Accept': 'application/json',
-        'Authorization': 'Basic ' + 'R2l0bGFiOmhGVmRXd3h5WDU1dg=='
+        'Authorization': 'Basic ' + ''
     }
     url = "https://jira.sidechef.cn/rest/greenhopper/latest/rapid/charts/sprintreport?rapidViewId=" + str(view_id) + "&sprintId=" + str(sprint_id)
     response = requests.request("GET", url, headers=headers)
@@ -297,7 +297,7 @@ def analyze_epic(project_name, start_date, end_date):
     errors = []
     headers = {
         'Accept': 'application/json',
-        'Authorization': 'Basic ' + 'R2l0bGFiOmhGVmRXd3h5WDU1dg=='
+        'Authorization': 'Basic ' + ''
     }
 
     jira_url = "https://jira.sidechef.cn/rest/api/2/search?maxResults=500&jql=project%20%3D%20" + project_name + "%20and%20type%3Depic%20and%20created%20>%20%27" + start_date + "%27%20and%20created%20<%20%27" + end_date + "%27%20and%20cf%5B10003%5D%3DDone"
