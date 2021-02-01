@@ -47,11 +47,11 @@ End Date: <input type="text" name="end" id="end"/>
 </div>
 {% if epics %}
 <table class="table table-bordered">
-<caption>{{project_name}} project epic analysis between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}</strong></caption>
+<caption>{{project_name}} project epic analysis for epics closed between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}</strong></caption>
 <caption>Total closed epics: {{epics|length}} epics</option>
 <caption>{{developers|length}} developers and {{testers|length}} testers</caption>
 <caption>Total points: {{total_points}} points</caption>
-<caption>Average lead time: {{avg_lead_time}} days</caption>
+<caption>Average lead time: {{avg_lead_time|round(2)}} days</caption>
 <caption>Average efficiency (pts/hours): {{avg_efficiency|round(4)}}</caption>
 </table>
 
@@ -104,7 +104,7 @@ End Date: <input type="text" name="end" id="end"/>
 </tr>
 <tr>
 <td>Total Hours</td>
-<td>{{epic['total_hours']}} hours</td>
+<td>{{epic['total_hours']|round(2)}} hours</td>
 </tr>
 <tr>
 <td>Efficiency</td>
@@ -112,24 +112,24 @@ End Date: <input type="text" name="end" id="end"/>
 </tr>
 <tr>
 <td>Dev Hours</td>
-<td>{{epic['dev_hours']}} hours</td>
+<td>{{epic['dev_hours']|round(2)}} hours</td>
 </tr>
 <tr>
 <td>Review Hours</td>
-<td>{{epic['review_hours']}} hours</td>
+<td>{{epic['review_hours']|round(2)}} hours</td>
 </tr>
 <tr>
 <td>QA Hours</td>
-<td>{{epic['qa_hours']}} hours</td>
+<td>{{epic['qa_hours']|round(2)}} hours</td>
 </tr>
 <tr>
 <td>Developers</td>
 <td>
 {% if epic['devs'] %}
 <table class="table table-bordered">
-<thead><th>Developer</th><th>Hours</th><th>Points</th></thead>
+<thead><th>Developer</th><th>Hours</th><th>Review Hours</th><th>Points</th></thead>
 {% for dev in epic['devs'] %}
-<tr><td>{{dev}}</td><td>{{epic['devs'][dev]['hours']|round(2)}} hours</td><td>{{epic['devs'][dev]['points']|round(2)}} points</td></tr>
+<tr><td>{{dev}}</td><td>{{epic['devs'][dev]['hours']|round(2)}} hours</td><td>{{epic['devs'][dev]['review_hours']|round(2)}} hours<td>{{epic['devs'][dev]['points']|round(2)}} points</td></tr>
 {% endfor %}
 </table>
 {% else %}
@@ -159,7 +159,7 @@ No QAs involved.
 <table class="table table-bordered">
 <thead><th>Task</th><th>Assignee</th><th>Created</th><th>Last Updated</th><th>Reviewer</th><th>QA</th><th>Dev Hours</th><th>Review Hours</th><th>QA Hours</th></thead>
 {% for task in epic['tasks'] %}
-<tr><td><a href="https://jira.sidechef.cn/browse/{{task['key']}}">{{task['key']}} {{task['name']}}</a></td><td>{{task['developer']}}</td><td>{{task['created'].strftime('%Y-%m-%d')}}</td><td>{{task['last_updated'].strftime('%Y-%m-%d')}}</td><td>{{task['reviewer']}}</td><td>{{task['tester']}}</td><td>{{task['dev_spent']}}</td><td>{{task['review_spent']}}</td><td>{{task['qa_spent']}}</td></tr>
+<tr><td><a href="https://jira.sidechef.cn/browse/{{task['key']}}">{{task['key']}} {{task['name']}}</a></td><td>{{task['developer']}}</td><td>{{task['created'].strftime('%Y-%m-%d')}}</td><td>{{task['last_updated'].strftime('%Y-%m-%d')}}</td><td>{{task['reviewer']}}</td><td>{{task['tester']}}</td><td>{{task['dev_spent']|round(2)}}</td><td>{{task['review_spent']|round(2)}}</td><td>{{task['qa_spent']|round(2)}}</td></tr>
 {% endfor %}
 </table>
 </td>

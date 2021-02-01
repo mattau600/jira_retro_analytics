@@ -300,7 +300,7 @@ def analyze_epic(project_name, start_date, end_date):
         'Authorization': 'Basic ' + ''
     }
 
-    jira_url = "https://jira.sidechef.cn/rest/api/2/search?maxResults=500&jql=project%20%3D%20" + project_name + "%20and%20type%3Depic%20and%20created%20>%20%27" + start_date + "%27%20and%20created%20<%20%27" + end_date + "%27%20and%20cf%5B10003%5D%3DDone"
+    jira_url = "https://jira.sidechef.cn/rest/api/2/search?maxResults=500&jql=project%20%3D%20" + project_name + "%20and%20type%3Depic%20and%20updated%20>%20%27" + start_date + "%27%20and%20updated%20<%20%27" + end_date + "%27%20and%20cf%5B10003%5D%3DDone"
     response = requests.request("GET", jira_url, headers=headers)
 
     if response.status_code == 200:
@@ -320,7 +320,6 @@ def analyze_epic(project_name, start_date, end_date):
                 epic_total_qa_hours = 0.0
                 epic_total_review_hours = 0.0
                 epic_devs = {}
-                epic_reviewers = {}
                 epic_qas = {}
                 task_entries = []
 
@@ -354,7 +353,7 @@ def analyze_epic(project_name, start_date, end_date):
                             else:
                                 task_review_time_spent = 0
 
-                            epic_total_review_hours += task_review_time_spent
+                            epic_total_dev_hours += task_review_time_spent  # add review hours to total dev hours
 
                             if task["fields"]["customfield_10204"]:
                                 task_qa_time_spent = task["fields"]["customfield_10204"]
@@ -381,7 +380,7 @@ def analyze_epic(project_name, start_date, end_date):
                                 if task_developer in epic_devs:
                                     epic_devs[task_developer]['hours'] += task_dev_time_spent
                                 else:
-                                    epic_devs[task_developer] = {'hours': task_dev_time_spent}
+                                    epic_devs[task_developer] = {'hours': task_dev_time_spent, 'review_hours': 0}
 
                             if task_tester:
                                 if task_tester in epic_qas:
@@ -390,28 +389,36 @@ def analyze_epic(project_name, start_date, end_date):
                                     epic_qas[task_tester] = {'hours': task_qa_time_spent}
 
                             if task_reviewer and task_review_time_spent > 0:
-                                if task_reviewer in epic_reviewers:
-                                    epic_reviewers[task_reviewer]['hours'] += task_review_time_spent
+                                if task_reviewer in epic_devs:
+                                    epic_devs[task_reviewer]['review_hours'] += task_review_time_spent
                                 else:
-                                    epic_reviewers[task_reviewer] = {'hours': task_review_time_spent}
+                                    epic_devs[task_reviewer] = {'hours': 0, 'review_hours': task_review_time_spent}
 
-                            task_entries.append({"key": task_key, "name": task_name.encode("utf-8"), "developer": task_developer, "tester": task_tester, "reviewer": task_reviewer, "dev_spent": task_dev_time_spent, "qa_spent": task_qa_time_spent, "review_spent": task_review_time_spent, "created": task_created, "last_updated": task_updated})
+                            task_entries.append({"key": task_key, "name": task_name, "developer": task_developer, "tester": task_tester, "reviewer": task_reviewer, "dev_spent": task_dev_time_spent, "qa_spent": task_qa_time_spent, "review_spent": task_review_time_spent, "created": task_created, "last_updated": task_updated})
 
                 lead_time = (epic_ended - epic_created).days
 
                 for dev in epic_devs:
-                    epic_devs[dev]['points'] = epic_points / len(epic_devs)
-                    if dev in developers:
-                        developers[dev]["points"] += epic_points / len(epic_devs)
+                    if epic_total_dev_hours > 0:
+                        dev_contribution = (epic_devs[dev]['hours'] + epic_devs[dev]['review_hours']) / epic_total_dev_hours
+                        epic_devs[dev]['points'] = epic_points * dev_contribution
+                        if dev in developers:
+                            developers[dev]["points"] += epic_points * dev_contribution
+                        else:
+                            developers[dev] = {"points": epic_points * dev_contribution}
                     else:
-                        developers[dev] = {"points": epic_points / len(epic_devs)}
+                        epic_devs[dev]['points'] = 0
 
                 for qa in epic_qas:
-                    epic_qas[qa]['points'] = epic_points / len(epic_qas)
-                    if qa in testers:
-                        testers[qa]["points"] += epic_points / len(epic_qas)
-                    else:
-                        testers[qa] = {"points": epic_points / len(epic_qas)}
+                    if epic_total_qa_hours > 0:
+                        qa_contribution = epic_qas[qa]['hours'] / epic_total_qa_hours
+                        epic_qas[qa]['points'] = epic_points * qa_contribution
+                        if qa in testers:
+                            testers[qa]["points"] += epic_points * qa_contribution
+                        else:
+                            testers[qa] = {"points": epic_points * qa_contribution}
+                    else:  # there are epics with no QA
+                        epic_qas[qa]['points'] = 0
                 epic_total_hours = epic_total_dev_hours + epic_total_qa_hours + epic_total_review_hours
                 if epic_total_hours > 0:
                     efficiency = epic_points / epic_total_hours
@@ -422,7 +429,7 @@ def analyze_epic(project_name, start_date, end_date):
                         "lead_time": lead_time,
                         "efficiency": efficiency,
                         "total_hours": epic_total_hours, "dev_hours": epic_total_dev_hours, "qa_hours": epic_total_qa_hours, "review_hours": epic_total_review_hours, "devs": epic_devs,
-                        "reviewers": epic_reviewers, "qas": epic_qas, "tasks": task_entries}
+                        "qas": epic_qas, "tasks": task_entries}
 
                 epics.append(epic)
 
@@ -435,6 +442,10 @@ def analyze_epic(project_name, start_date, end_date):
     if len(epics) > 0:
         avg_lead_time = total_lead_time / len(epics)
         avg_efficiency = total_efficiency / len(epics)
+
+    # sort the 2 dictionaries based on points
+    developers = {k: v for k, v in sorted(developers.items(), key=lambda item: item[1]['points'], reverse=True)}
+    testers = {k: v for k, v in sorted(testers.items(), key=lambda item: item[1]['points'], reverse=True)}
 
     return total_points, avg_lead_time, avg_efficiency, developers, testers, epics, errors
 
