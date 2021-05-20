@@ -112,6 +112,8 @@ SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
 <th>Summary</th>
 <th>Status</th>
 <th>Time Updated</th>
+<th>Hours Estimated</th>
+<th>Hours Spent</th>
 <th>Hours Left</th>
 </thead>
 {% for assignee in deferred %}
@@ -121,7 +123,9 @@ SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
 <td><img src="{{entry['icon']}}"/> <a href="{{entry['link']}}">{{entry['title']}}</a></td>
 <td>{{entry['status']}}</td>
 <td>{{entry['updated']}}</td>
-<td>{{entry['hours_left']}}</td>
+<td>{{entry['hours_estimated']}}</td>
+<td>{{entry['hours_spent']}}</td>
+<td class="{% if entry['hours_spent'] > entry['estimated'] %}danger{% else %}success{% endif %}" >{{entry['hours_left']}}</td>
 </tr>
 {% endfor %}
 {% endfor %}

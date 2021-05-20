@@ -127,6 +127,8 @@ def analyze_issue(sprint_id, view_id):
                 hours_spent = int(item['fields']['timespent'] or 0) / 3600
                 hours_spent_in_sprint = get_hours_spent_from_worklog(item['fields']['worklog'], start_time, end_time) / 3600
 
+                original_hours_estimate = int(item['fields']['timeoriginalestimate'] or 0) / 3600
+
                 if item['fields']['status']['name'] == "Done":
                     time_estimate = int(item['fields']['timeoriginalestimate'] or 0)
                     hours_estimate = time_estimate / 3600
@@ -189,7 +191,7 @@ def analyze_issue(sprint_id, view_id):
                             misestimated[assignee] = [misestimated_entry]
 
                 elif issue in deferred_issues and hours_left > 0.1:  # tasks may be 'done', but remain in "issues not completed in sprint", greater than 60 seconds
-                    deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "link": link, "icon": type_url, "updated": updated_time, "status": item['fields']['status']['name']}
+                    deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "hours_spent": convert_to_time(hours_spent_in_sprint), "hours_estimated": convert_to_time(original_hours_estimate), "link": link, "icon": type_url, "updated": updated_time, "status": item['fields']['status']['name']}
                     if assignee in deferred:
                         deferred[assignee].append(deferred_entry)
                     else:
@@ -300,7 +302,7 @@ def analyze_epic(project_name, start_date, end_date):
         'Authorization': 'Basic ' + ''
     }
 
-    jira_url = "https://jira.sidechef.cn/rest/api/2/search?maxResults=500&jql=project%20%3D%20" + project_name + "%20and%20type%3Depic%20and%20updated%20>%20%27" + start_date + "%27%20and%20updated%20<%20%27" + end_date + "%27%20and%20cf%5B10003%5D%3DDone"
+    jira_url = "https://jira.sidechef.cn/rest/api/2/search?maxResults=500&jql=project%20%3D%20" + project_name + "%20and%20type%3Depic%20and%20updated%20>%20%27" + start_date + "%27%20and%20updated%20<%20%27" + end_date + "%27%20and%20cf%5B10003%5D%3DDone%20order%20by%20updated"
     response = requests.request("GET", jira_url, headers=headers)
 
     if response.status_code == 200:
