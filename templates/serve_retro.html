@@ -125,7 +125,7 @@ SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
 <td>{{entry['updated']}}</td>
 <td>{{entry['hours_estimated']}}</td>
 <td>{{entry['hours_spent']}}</td>
-<td class="{% if entry['hours_spent'] > entry['estimated'] %}danger{% else %}success{% endif %}" >{{entry['hours_left']}}</td>
+<td class="{% if entry['hours_spent'] > entry['hours_estimated'] %}danger{% else %}success{% endif %}" >{{entry['hours_left']}}</td>
 </tr>
 {% endfor %}
 {% endfor %}
