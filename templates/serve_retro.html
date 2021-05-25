@@ -41,9 +41,9 @@ SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
 <thead>
    <th>Assignee</th>
    <th>Estimated</th>
-   <th>Est (Done)</th>
-   <th>Spent (Done)</th>
-   <th>Spent (In Sprint)</th>
+   <th>Est: CodeRev QA Done</th>
+   <th>Spent: CodeRev QA Done</th>
+   <th>Spent: In Sprint</th>
    <th>Deferred</th>
    <th>Unplanned</th>
    <th>Bugs</th>
@@ -207,8 +207,8 @@ SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
 
 <div class="well">
 <ul>
-<li>"Est (Done)" indicates the total hours estimated on tasks in this sprint that are moved to Done.  It does not include estimates on incomplete tasks, but will include estimates of unplanned tasks.</li>
-<li>"Spent (Done)" indicates the total hours spent on tasks are that moved to Done.  It does not include time spent on incomplete tasks, but will include time spent on unplanned tasks.  It will also include time spent from previous sprints.</li>
+<li>"Est (CodeReview/QA/Done)" indicates the total hours estimated on tasks in this sprint that are moved to CodeReview, QA, or Done.  It does not include estimates on tasks on ToDo or InProgress, but will include estimates of unplanned tasks.</li>
+<li>"Spent (CodeReview/QA/Done)" indicates the total hours spent on tasks are that moved to CodeReview, QA, or Done.  It does not include time spent on tasks on ToDo or InProgress, but will include time spent on unplanned tasks.  It will also include time spent from previous sprints.</li>
 <li>"Spent (In Sprint)" indicates the total hours spent on tasks are within the current sprint by looking at work log.  It assumes that a single person will work on a task.</li>
 <li>"% Est Accurancy" is "Estimate (Done)" divided by "Spent (Done)" hours.  Over a 100% means the team member has underestimated the tasks, and should have put higher estimates.  Under a 100% means the team member overestimated and should have put lower estimates.  Target is 100%.  It also assumes that task is owned by a single owner.</li>
 <li>"% Amt Deferred" is "Deferred" divided by "Estimated."  Target is 0%.</li>

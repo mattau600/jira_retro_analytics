@@ -61,7 +61,7 @@ def get_hours_spent_from_worklog(worklogs, start, end):
     if worklogs and 'worklogs' in worklogs:
         for worklog in worklogs['worklogs']:
             worklog_time = datetime.strptime(worklog['created'], "%Y-%m-%dT%H:%M:%S.000+0800")
-            if worklog_time > start and worklog_time < end:
+            if worklog_time >= start and worklog_time <= end:
                 time += worklog["timeSpentSeconds"]
     return time
 
@@ -129,7 +129,7 @@ def analyze_issue(sprint_id, view_id):
 
                 original_hours_estimate = int(item['fields']['timeoriginalestimate'] or 0) / 3600
 
-                if item['fields']['status']['name'] == "Done":
+                if item['fields']['status']['name'] in ["Done", "QA", "Code Review"]:
                     time_estimate = int(item['fields']['timeoriginalestimate'] or 0)
                     hours_estimate = time_estimate / 3600
                     time_left = 0
