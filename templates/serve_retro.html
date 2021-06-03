@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jira Agile Retrospective Analysis</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+
+  <style>
+th {
+    background-color: #d9edf7;
+    color: #31708f;
+}
+
+  </style>
+</head>
+<body>
+<div class="container theme-showcase" role="main">
+<div class="header clearfix">
+    <h3 class="text-muted"></h3>
+</div>
+<div class="jumbotron">
+<h2>Jira Agile Retrospective Analysis</h2>
+<p>This tool will generate analysis data using Jira Agile exported xml report.</p>
+
+<form method="post" enctype="multipart/form-data">
+RapidView ID: <input type="text" name="rapid_id" id="rapid_id"/>
+SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
+<input type="submit" value="Submit" class="btn btn-lg btn-default">
+</form>
+
+</div>
+{% if data %}
+<table class="table table-bordered">
+<caption>{{ sprint_name }} is between <strong>{{ start_date }}</strong> to <strong>{{ end_date }}</strong> for a total of <strong>{{ total_working_hours }}</strong> working hours.</caption>
+<thead>
+   <th>Assignee</th>
+   <th>Estimated</th>
+   <th>Est: CodeRev QA Done</th>
+   <th>Spent: CodeRev QA Done</th>
+   <th>Spent: In Sprint</th>
+   <th>Deferred</th>
+   <th>Unplanned</th>
+   <th>Bugs</th>
+   <th>% Est Accuracy</th>
+   <th>% Amt Deferred</th>
+   <th>% Unplanned</th>
+   <th>% Utilized</th>
+   <th>% Bugs</th>
+</thead>
+{% for entry in data %}
+<tr>
+   <th>{{entry[0]}}</th>
+   <td>{{entry[1]}}</td>
+   <td>{{entry[2]}}</td>
+   <td>{{entry[3]}}</td>
+   <td>{{entry[4]}}</td>
+   <td>{{entry[5]}}</td>
+   <td>{{entry[6]}}</td>
+   <td>{{entry[7]}}</td>
+   <td class="{% if entry[8] > 115 %}danger{% elif entry[8] < 95 or entry[8] > 110 %}warning{% else %}success{% endif %}" >{{entry[8]}}%</td>
+   <td class="{% if entry[9] > 10 %}danger{% elif entry[9] > 5 %}warning{% else %}success{% endif %}" >{{entry[9]}}%</td>
+   <td class="{% if entry[10] > 10 %}danger{% elif entry[10] > 5 %}warning{% else %}success{% endif %}">{{entry[10]}}%</td>
+   <td class="{% if entry[11] > 105 or entry[11] < 80 %}danger{% elif entry[11] > 105 or entry[11] < 90 %}warning{% else %}success{% endif %}">{{entry[11]}}%</td>
+   <td class="{% if entry[12] > 10 %}danger{% elif entry[12] > 5 %}warning{% else %}success{% endif %}" >{{entry[12]}}%</td>
+</tr>
+{% endfor %}
+</table>
+
+{% if no_deferral_assignee %}
+<p>Congratulations to the following team members fully completed the sprint: <span class="text-success">{{no_deferral_assignee | join(', ') }} </span> <p>
+{% else %}
+<p>No one fully completed sprint.</p>
+{% endif %}
+
+{% if unplanned %}
+<table class="table table-bordered">
+<caption>Unplanned Tasks</caption>
+<thead>
+<th>Assignee</th>
+<th>Summary</th>
+<th>Time Created</th>
+<th>Hours Left</th>
+<th>Hours Spent</th>
+</thead>
+{% for assignee in unplanned %}
+{% for entry in unplanned[assignee] %}
+<tr>
+<td>{{entry['assignee']}}</td>
+<td><img src="{{entry['icon']}}"/> <a href="{{entry['link']}}">{{entry['title']}}</a></td>
+<td>{{entry['created']}}</td>
+<td>{{entry['hours_left']}}</td>
+<td>{{entry['hours_spent']}}</td>
+</tr>
+{% endfor %}
+{% endfor %}
+</table>
+{% else %}
+<p>No unplanned tasks.</p>
+{% endif %}
+
+{% if deferred %}
+<table class="table table-bordered">
+<caption>Deferred Tasks</caption>
+<thead>
+<th>Assignee</th>
+<th>Summary</th>
+<th>Status</th>
+<th>Time Updated</th>
+<th>Hours Estimated</th>
+<th>Hours Spent</th>
+<th>Hours Left</th>
+</thead>
+{% for assignee in deferred %}
+{% for entry in deferred[assignee] %}
+<tr>
+<td>{{entry['assignee']}}</td>
+<td><img src="{{entry['icon']}}"/> <a href="{{entry['link']}}">{{entry['title']}}</a></td>
+<td>{{entry['status']}}</td>
+<td>{{entry['updated']}}</td>
+<td>{{entry['hours_estimated']}}</td>
+<td>{{entry['hours_spent']}}</td>
+<td class="{% if entry['hours_spent'] > entry['hours_estimated'] %}danger{% else %}success{% endif %}" >{{entry['hours_left']}}</td>
+</tr>
+{% endfor %}
+{% endfor %}
+</table>
+{% else %}
+<p>No deferred tasks.</p>
+{% endif %}
+
+{% if misestimated %}
+<table class="table table-bordered">
+<caption>Misestimated Tasks</caption>
+<thead>
+<th>Assignee</th>
+<th>Summary</th>
+<th>Time Created</th>
+<th>Hours Estimated</th>
+<th>Hours Spent</th>
+<th>Over by</th>
+<th>Difference</th>
+</thead>
+{% for assignee in misestimated %}
+{% for entry in misestimated[assignee] %}
+<tr>
+<td>{{entry['assignee']}}</td>
+<td><img src="{{entry['icon']}}"/> <a href="{{entry['link']}}">{{entry['title']}}</a></td>
+<td>{{entry['created']}}</td>
+<td>{{entry['hours_estimated']}}</td>
+<td>{{entry['hours_spent']}}</td>
+<td>{{entry['over_by']}}</td>
+<td class="{% if entry['diff'] > 0 %}danger{% else %}success{% endif %}" >{{entry['diff']}}%</td>
+</tr>
+{% endfor %}
+{% endfor %}
+{% else %}
+<p>No misestimated tasks.</p>
+{% endif %}
+
+{%if done_but_time_left %}
+<table class="table table-bordered">
+<caption>Tasks marked as "Done" but has time remaining.  This is usually a mistake.</caption>
+<thead>
+<th>Assignee</th>
+<th>Summary</th>
+<th>Time Updated</th>
+<th>Hours Left</th>
+</thead>
+{% for entry in done_but_time_left %}
+<tr class="warning">
+<td>{{entry['assignee']}}</td>
+<td><a href="{{entry['link']}}">{{entry['title']}}</a></td>
+<td>{{entry['updated']}}</td>
+<td>{{entry['hours_left']}}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{%if testers %}
+<table class="table table-bordered">
+<thead>
+<th>Tester</th>
+<th>QA Hours</th>
+<th>Automated Tests</th>
+</thead>
+{% for tester in testers %}
+<tr>
+<td>{{tester}}</td>
+<td>{{testers[tester]['total_qa_hours']}}</td>
+<td>{{testers[tester]['total_tests']}}</td>
+</tr>
+{% endfor %}
+<tr>
+<th>Total</th>
+<th>{{total_qa_spent}}</th>
+<th>{{total_tests}}</th>
+</tr>
+</table>
+{% endif %}
+
+<div class="well">
+<ul>
+<li>"Est (CodeReview/QA/Done)" indicates the total hours estimated on tasks in this sprint that are moved to CodeReview, QA, or Done.  It does not include estimates on tasks on ToDo or InProgress, but will include estimates of unplanned tasks.</li>
+<li>"Spent (CodeReview/QA/Done)" indicates the total hours spent on tasks are that moved to CodeReview, QA, or Done.  It does not include time spent on tasks on ToDo or InProgress, but will include time spent on unplanned tasks.  It will also include time spent from previous sprints.</li>
+<li>"Spent (In Sprint)" indicates the total hours spent on tasks are within the current sprint by looking at work log.  It assumes that a single person will work on a task.</li>
+<li>"% Est Accurancy" is "Estimate (Done)" divided by "Spent (Done)" hours.  Over a 100% means the team member has underestimated the tasks, and should have put higher estimates.  Under a 100% means the team member overestimated and should have put lower estimates.  Target is 100%.  It also assumes that task is owned by a single owner.</li>
+<li>"% Amt Deferred" is "Deferred" divided by "Estimated."  Target is 0%.</li>
+<li>"% Unplanned" is "Unplanned" divided by "Estimated."  Target is 0%.</li>
+<li>"% Utilized" is "Spent" divided by Working hours for the sprint.  Target is 100%.</li>
+<li>"% Bugs" is percentage of hours speint on tasks completed in sprint that are bugs.  This will include hours spent for the completed tasks that were started in previous sprints.</li>
+<li>A task is considered unplanned if it is moved into the sprint after the sprint has started.</li>
+<li>A task is considered misestimated if its hours spent is different from hours estimated by 20%</li>
+</ul>
+</div>
+
+{% endif %}
+</div>
+</body>
+</html>

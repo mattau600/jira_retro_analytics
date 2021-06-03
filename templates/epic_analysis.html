@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jira Agile Epic Analysis</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+  
+  
+  <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+  <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  <script>
+  $(function() {
+    $( "#start" ).datepicker({ dateFormat: 'yy-mm-dd' });
+    $( "#end" ).datepicker({ dateFormat: 'yy-mm-dd' });
+  });
+  </script>
+  <style>
+th {
+    background-color: #d9edf7;
+    color: #31708f;
+}
+
+  </style>
+</head>
+<body>
+<div class="container theme-showcase" role="main">
+<div class="header clearfix">    
+    <h3 class="text-muted"></h3>
+</div>
+<div class="jumbotron">
+<h2>Jira Agile Epic Analysis</h2>
+<p>This tool will generate analysis data using Jira API.</p>
+
+<form method="post">
+Project Name: <input type="text" name="project_name" id="project_name">
+Start Date: <input type="text" name="start" id="start"/>
+End Date: <input type="text" name="end" id="end"/>
+<input type="submit" value="Submit" class="btn btn-lg btn-default">
+</form>
+
+</div>
+{% if epics %}
+<table class="table table-bordered">
+<caption>{{project_name}} project epic analysis for epics closed between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}</strong></caption>
+<caption>Total closed epics: {{epics|length}} epics</option>
+<caption>{{developers|length}} developers and {{testers|length}} testers</caption>
+<caption>Total points: {{total_points}} points</caption>
+<caption>Average lead time: {{avg_lead_time|round(2)}} days</caption>
+<caption>Average efficiency (pts/hours): {{avg_efficiency|round(4)}}</caption>
+</table>
+
+{% if developers %}
+<table class="table table-bordered">
+<thead><th>Developers</th><th>Points</th></thead>
+{% for developer in developers %}
+<tr>
+<td>{{developer}}</td>
+<td>{{developers[developer]["points"]|round(2)}} points</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% if testers %}
+<table class="table table-bordered">
+<thead><th>QA</th><th>Points</th></thead>
+{% for qa in testers %}
+<tr>
+<td>{{qa}}</td>
+<td>{{testers[qa]["points"]|round(2)}} points</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% for epic in epics %}
+<table class="table table-bordered">
+<thead>
+<th>Epic</th>
+<th><a href="https://jira.sidechef.cn/browse/{{epic['key']}}">{{epic['key']}} {{epic['name']}}</a></th>
+</thead>
+<tr>
+<td>First created</td>
+<td>{{epic['created'].strftime('%Y-%m-%d')}}</td>
+</tr>
+<tr>
+<td>Last closed</td>
+<td>{{epic['ended'].strftime('%Y-%m-%d')}}</td>
+</tr>
+<tr>
+<tr>
+<td>Lead Time</td>
+<td>{{epic['lead_time']}} days</td>
+</tr>
+<tr>
+<td>Points</td>
+<td>{{epic['points']}} points</td>
+</tr>
+<tr>
+<td>Total Hours</td>
+<td>{{epic['total_hours']|round(2)}} hours</td>
+</tr>
+<tr>
+<td>Efficiency</td>
+<td>{{epic['efficiency']|round(4)}}</td>
+</tr>
+<tr>
+<td>Dev Hours</td>
+<td>{{epic['dev_hours']|round(2)}} hours</td>
+</tr>
+<tr>
+<td>Review Hours</td>
+<td>{{epic['review_hours']|round(2)}} hours</td>
+</tr>
+<tr>
+<td>QA Hours</td>
+<td>{{epic['qa_hours']|round(2)}} hours</td>
+</tr>
+<tr>
+<td>Developers</td>
+<td>
+{% if epic['devs'] %}
+<table class="table table-bordered">
+<thead><th>Developer</th><th>Hours</th><th>Review Hours</th><th>Points</th></thead>
+{% for dev in epic['devs'] %}
+<tr><td>{{dev}}</td><td>{{epic['devs'][dev]['hours']|round(2)}} hours</td><td>{{epic['devs'][dev]['review_hours']|round(2)}} hours<td>{{epic['devs'][dev]['points']|round(2)}} points</td></tr>
+{% endfor %}
+</table>
+{% else %}
+No developers involved.
+{% endif %}
+</td>
+</tr>
+<tr>
+<td>QA</td>
+<td>
+{% if epic['qas'] %}
+<table class="table table-bordered">
+<thead><th>QA</th><th>Hours</th><th>Points</th></thead>
+{% for qa in epic['qas'] %}
+<tr><td>{{qa}}</td><td>{{epic['qas'][qa]['hours']|round(2)}} hours</td><td>{{epic['qas'][qa]['points']|round(2)}} points</td></tr>
+{% endfor %}
+</table>
+{% else %}
+No QAs involved.
+{% endif %}
+</td>
+</tr>
+
+<tr>
+<td>Tasks</td>
+<td>
+<table class="table table-bordered">
+<thead><th>Task</th><th>Assignee</th><th>Created</th><th>Last Updated</th><th>Reviewer</th><th>QA</th><th>Dev Hours</th><th>Review Hours</th><th>QA Hours</th></thead>
+{% for task in epic['tasks'] %}
+<tr><td><a href="https://jira.sidechef.cn/browse/{{task['key']}}">{{task['key']}} {{task['name']}}</a></td><td>{{task['developer']}}</td><td>{{task['created'].strftime('%Y-%m-%d')}}</td><td>{{task['last_updated'].strftime('%Y-%m-%d')}}</td><td>{{task['reviewer']}}</td><td>{{task['tester']}}</td><td>{{task['dev_spent']|round(2)}}</td><td>{{task['review_spent']|round(2)}}</td><td>{{task['qa_spent']|round(2)}}</td></tr>
+{% endfor %}
+</table>
+</td>
+</tr>
+
+</table>
+{% endfor %}
+{% elif project_name %}
+No closed epics found for {{project_name}} project between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}.
+{% endif %}
+
+</body>
+</html>
