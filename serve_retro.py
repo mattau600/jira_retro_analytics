@@ -129,7 +129,7 @@ def analyze_issue(sprint_id, view_id):
 
                 original_hours_estimate = int(item['fields']['timeoriginalestimate'] or 0) / 3600
 
-                if item['fields']['status']['name'] in ["Done", "QA", "Code Review"]:
+                if item['fields']['status']['name'] in ["Done", "QA", "Review", "Code Review"]:
                     time_estimate = int(item['fields']['timeoriginalestimate'] or 0)
                     hours_estimate = time_estimate / 3600
                     time_left = 0
@@ -174,7 +174,7 @@ def analyze_issue(sprint_id, view_id):
                         unplanned[assignee] = [unplanned_entry]
                     record["total_unplanned"] += hours_spent
 
-                if item['fields']['status']['name'] in ["Done", "QA", "Code Review"]:
+                if item['fields']['status']['name'] in ["Done", "QA", "Review", "Code Review"]:
                     total_time_estimate_done += hours_estimate
                     total_time_spent_done += hours_spent
                     record["total_estimated_done"] += hours_estimate
