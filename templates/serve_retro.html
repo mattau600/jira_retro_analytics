@@ -140,6 +140,7 @@ SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
 <thead>
 <th>Assignee</th>
 <th>Summary</th>
+<th>Status</th>
 <th>Time Created</th>
 <th>Hours Estimated</th>
 <th>Hours Spent</th>
@@ -151,6 +152,7 @@ SprintID: <input type="text" name="sprint_id" id="sprint_id"/>
 <tr>
 <td>{{entry['assignee']}}</td>
 <td><img src="{{entry['icon']}}"/> <a href="{{entry['link']}}">{{entry['title']}}</a></td>
+<td>{{entry['status']}}</td>
 <td>{{entry['created']}}</td>
 <td>{{entry['hours_estimated']}}</td>
 <td>{{entry['hours_spent']}}</td>

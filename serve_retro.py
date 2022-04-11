@@ -123,6 +123,7 @@ def analyze_issue(sprint_id, view_id):
                 type = item['fields']['issuetype']['name']
                 created_time = datetime.strptime(item['fields']['created'], "%Y-%m-%dT%H:%M:%S.000+0800")
                 updated_time = datetime.strptime(item['fields']['updated'], "%Y-%m-%dT%H:%M:%S.000+0800")
+                status = item['fields']['status']['name']
 
                 hours_spent = int(item['fields']['timespent'] or 0) / 3600
                 hours_spent_in_sprint = get_hours_spent_from_worklog(item['fields']['worklog'], start_time, end_time) / 3600
@@ -174,7 +175,7 @@ def analyze_issue(sprint_id, view_id):
                         unplanned[assignee] = [unplanned_entry]
                     record["total_unplanned"] += hours_spent
 
-                if item['fields']['status']['name'] in ["Done", "QA", "Review", "Code Review"]:
+                if status in ["Done", "QA", "Review", "Code Review"]:
                     total_time_estimate_done += hours_estimate
                     total_time_spent_done += hours_spent
                     record["total_estimated_done"] += hours_estimate
@@ -184,14 +185,14 @@ def analyze_issue(sprint_id, view_id):
                         done_but_time_left.append({"title": title, "assignee": assignee, "hours_left": convert_to_time(done_with_hours_left), "link": link})
 
                     if float(hours_estimate) > 0.1 and abs(float(hours_spent) - float(hours_estimate)) / float(hours_estimate) > .20:  # 60 seconds is used for QA.
-                        misestimated_entry = {"title": title, "assignee": assignee, "hours_estimated": convert_to_time(hours_estimate), "hours_spent": convert_to_time(hours_spent), "over_by": convert_to_time(hours_spent - hours_estimate), "diff": int(round((hours_spent - hours_estimate) / hours_estimate, 2) * 100), "link": link, "created": created_time, "icon": type_url}
+                        misestimated_entry = {"title": title, "assignee": assignee, "hours_estimated": convert_to_time(hours_estimate), "hours_spent": convert_to_time(hours_spent), "over_by": convert_to_time(hours_spent - hours_estimate), "diff": int(round((hours_spent - hours_estimate) / hours_estimate, 2) * 100), "link": link, "created": created_time, "icon": type_url, "status": status}
                         if assignee in misestimated:
                             misestimated[assignee].append(misestimated_entry)
                         else:
                             misestimated[assignee] = [misestimated_entry]
 
                 elif issue in deferred_issues and hours_left > 0.1:  # tasks may be 'done', but remain in "issues not completed in sprint", greater than 60 seconds
-                    deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "hours_spent": convert_to_time(hours_spent_in_sprint), "hours_estimated": convert_to_time(original_hours_estimate), "link": link, "icon": type_url, "updated": updated_time, "status": item['fields']['status']['name']}
+                    deferred_entry = {"title": title, "assignee": assignee, "hours_left": convert_to_time(hours_left), "hours_spent": convert_to_time(hours_spent_in_sprint), "hours_estimated": convert_to_time(original_hours_estimate), "link": link, "icon": type_url, "updated": updated_time, "status": status}
                     if assignee in deferred:
                         deferred[assignee].append(deferred_entry)
                     else:
